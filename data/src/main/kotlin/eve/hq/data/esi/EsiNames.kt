@@ -31,6 +31,10 @@ internal class EsiNames(
         return loadTypeNames(ids.filterNot(staticNames::containsKey)) + staticNames
     }
 
+    /** For ids that may be either, such as a job facility or blueprint location: structure ids are far above station ids. */
+    suspend fun stationOrStructureName(id: Long, accessToken: String): String? =
+        if (id >= STRUCTURE_ID_MIN) structureName(id, accessToken) else stationName(id)
+
     suspend fun stationName(id: Long): String? = getLocation("universe/stations/$id/")
 
     suspend fun systemName(id: Long): String? = getLocation("universe/systems/$id/")
@@ -97,5 +101,6 @@ internal class EsiNames(
     private companion object {
         const val LOOKUP_BATCH_SIZE = 1000
         const val MAX_TYPE_LOOKUPS_PER_BATCH = 8
+        const val STRUCTURE_ID_MIN = 1_000_000_000_000L
     }
 }

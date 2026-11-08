@@ -1,7 +1,6 @@
 package eve.hq.data.esi
 
 import eve.hq.core.character.EveCharacter
-import eve.hq.core.character.LoginRequired
 import eve.hq.core.industry.CachedJobPage
 import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.industry.IndustryJob
@@ -16,10 +15,8 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -50,7 +47,7 @@ class EveJobSource(
                 startedAt = Instant.parse(job.startDate),
                 endsAt = Instant.parse(job.endDate),
                 status = status(job.status),
-                facility = JobFacility(job.facilityId, facilityName(job.facilityId, character)),
+                facility = JobFacility(job.facilityId, names.stationOrStructureName(job.facilityId, character.token.accessToken)),
             )
         }
     }
@@ -65,23 +62,11 @@ class EveJobSource(
         val page = if (response.status == HttpStatusCode.NotModified && cached != null) {
             cached.copy(etag = response.headers[HttpHeaders.ETag] ?: cached.etag, expiresAt = response.expiresAt())
         } else {
-            CachedJobPage(response.successBody(), response.headers[HttpHeaders.ETag], response.expiresAt())
+            CachedJobPage(response.bodyOrFail("industry jobs", "industry job"), response.headers[HttpHeaders.ETag], response.expiresAt())
         }
         pageCache?.save(character.id, page)
         return page.body
     }
-
-    private suspend fun HttpResponse.successBody(): String {
-        val body = bodyAsText()
-        if (status == HttpStatusCode.Forbidden || status == HttpStatusCode.Unauthorized) {
-            throw LoginRequired("EVE denied industry job access. Please use Add character to re-authorize job access.")
-        }
-        if (!status.isSuccess()) throw EsiRequestFailed("industry jobs", status.value, body)
-        return body
-    }
-
-    private suspend fun facilityName(id: Long, character: EveCharacter): String? =
-        if (id >= STRUCTURE_ID_MIN) names.structureName(id, character.token.accessToken) else names.stationName(id)
 
     private fun activity(id: Int) = when (id) {
         1 -> IndustryActivity.Manufacturing
@@ -117,8 +102,4 @@ class EveJobSource(
         val status: String,
         @SerialName("facility_id") val facilityId: Long,
     )
-
-    private companion object {
-        const val STRUCTURE_ID_MIN = 1_000_000_000_000L
-    }
 }
