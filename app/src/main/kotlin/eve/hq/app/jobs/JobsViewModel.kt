@@ -55,7 +55,13 @@ class JobsViewModel(
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
-                val listing = withContext(io) { listJobs(listCharacters()) }
+                val characters = withContext(io) { listCharacters() }
+                val saved = withContext(io) { listJobs.cached(characters) }
+                if (saved.rows.isNotEmpty()) {
+                    rows = saved.rows
+                    _state.update { it.copy(lines = lines()) }
+                }
+                val listing = withContext(io) { listJobs(characters) }
                 rows = listing.rows
                 _state.update { it.copy(loading = false, lines = lines(), failures = listing.failures) }
             } catch (e: CancellationException) {

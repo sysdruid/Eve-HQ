@@ -86,6 +86,25 @@ class BlueprintsViewModelTest {
     }
 
     @Test
+    fun `saved blueprints are visible while the network refresh is still pending`() {
+        system.store(1, "Alice")
+        val pending = CompletableDeferred<List<OwnedBlueprint>>()
+        val source = object : BlueprintSource {
+            override suspend fun load(character: eve.hq.core.character.EveCharacter) = pending.await()
+            override fun cached(character: eve.hq.core.character.EveCharacter) = listOf(blueprint(1001, "Rifter Blueprint"))
+        }
+
+        val viewModel = viewModelFor(source, noJobs)
+
+        assertThat(viewModel.state.value.loading).isTrue()
+        assertThat(viewModel.state.value.lines.map { it.text.substringAfter("  ").substringBefore("  ") })
+            .containsExactly("Rifter Blueprint")
+        pending.complete(listOf(blueprint(1002, "Merlin Blueprint")))
+        assertThat(viewModel.state.value.lines.map { it.text.substringAfter("  ").substringBefore("  ") })
+            .containsExactly("Merlin Blueprint")
+    }
+
+    @Test
     fun `a character that fails to load is reported while the others are listed`() {
         system.store(1, "Alice")
         system.store(2, "Bob")

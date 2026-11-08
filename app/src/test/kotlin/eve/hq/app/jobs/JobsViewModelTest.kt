@@ -112,6 +112,23 @@ class JobsViewModelTest {
     }
 
     @Test
+    fun `saved jobs are visible while the network refresh is still pending`() {
+        system.store(1, "Alice")
+        val pending = CompletableDeferred<List<IndustryJob>>()
+        val source = object : JobSource {
+            override suspend fun load(character: eve.hq.core.character.EveCharacter) = pending.await()
+            override fun cached(character: eve.hq.core.character.EveCharacter) = listOf(manufacturing("Rifter"))
+        }
+
+        val viewModel = viewModelFor(source)
+
+        assertThat(viewModel.state.value.loading).isTrue()
+        assertThat(viewModel.state.value.lines.map { it.text.substringBefore(" [") }).containsExactly("Alice-Rifter")
+        pending.complete(listOf(manufacturing("Merlin")))
+        assertThat(viewModel.state.value.lines.map { it.text.substringBefore(" [") }).containsExactly("Alice-Merlin")
+    }
+
+    @Test
     fun `a character that fails to load is reported while the others are listed`() {
         system.store(1, "Alice")
         system.store(2, "Bob")

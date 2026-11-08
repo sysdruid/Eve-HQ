@@ -57,7 +57,13 @@ class BlueprintsViewModel(
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
-                val listing = withContext(io) { listBlueprints(listCharacters()) }
+                val characters = withContext(io) { listCharacters() }
+                val saved = withContext(io) { listBlueprints.cached(characters) }
+                if (saved.rows.isNotEmpty()) {
+                    rows = saved.rows
+                    _state.update { it.copy(lines = lines(it.query, it.freeOnly)) }
+                }
+                val listing = withContext(io) { listBlueprints(characters) }
                 rows = listing.rows
                 _state.update {
                     it.copy(loading = false, lines = lines(it.query, it.freeOnly), failures = listing.failures)
