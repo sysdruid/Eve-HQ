@@ -16,6 +16,10 @@ import kotlin.test.assertFailsWith
 class FileDatabaseTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-08T10:00:00Z"), ZoneOffset.UTC)
 
+    private val cipher = TokenCipher(ByteArray(32) { it.toByte() })
+
+    private fun repository(dataSource: javax.sql.DataSource) = JooqCharacterRepository(dataSource, cipher)
+
     private val alice = EveCharacter(
         id = 1,
         name = "Alice",
@@ -25,11 +29,11 @@ class FileDatabaseTest {
     @Test
     fun `given characters stored in the database file, when it is reopened, they are still listed`(@TempDir dir: Path) {
         val first = FileDatabase.open(dir, clock)
-        JooqCharacterRepository(first.dataSource).save(alice)
+        repository(first.dataSource).save(alice)
 
         val reopened = FileDatabase.open(dir, clock)
 
-        assertEquals(listOf(alice), JooqCharacterRepository(reopened.dataSource).all())
+        assertEquals(listOf(alice), repository(reopened.dataSource).all())
     }
 
     private fun scripts(dir: Path, name: String, vararg files: Pair<String, String>): String {
@@ -50,7 +54,7 @@ class FileDatabaseTest {
     fun `given an existing database with pending migrations, a backup copy is made before migrating`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val withV2 = scripts(dir, "v1-and-v2", v1, v2)
-        JooqCharacterRepository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
+        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
 
         FileDatabase.open(dir, clock, withV2)
 
@@ -75,7 +79,7 @@ class FileDatabaseTest {
     fun `the backup holds the data as it was before the migration`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val withV2 = scripts(dir, "v1-and-v2", v1, v2)
-        JooqCharacterRepository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
+        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
         FileDatabase.open(dir, clock, withV2)
 
         val (names, tables) = inspect(backups(dir).single())
@@ -104,10 +108,30 @@ class FileDatabaseTest {
     fun `given a migration that fails, the error is reported and the backup keeps the earlier data`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val broken = scripts(dir, "v1-and-broken", v1, "V2__broken.sql" to "THIS IS NOT SQL;")
-        JooqCharacterRepository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
+        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
 
         assertFailsWith<Exception> { FileDatabase.open(dir, clock, broken) }
 
         assertEquals(listOf("Alice"), inspect(backups(dir).single()).first)
+    }
+
+    private val v2Widen = "V2__widen_token_columns.sql" to Files.readString(
+        Path.of("src/main/resources/db/migration/V2__widen_token_columns.sql"),
+    )
+
+    @Test
+    fun `widening the token columns keeps existing characters and keeps the columns required`(@TempDir dir: Path) {
+        repository(FileDatabase.open(dir, clock, scripts(dir, "v1-only", v1)).dataSource).save(alice)
+
+        val migrated = FileDatabase.open(dir, clock, scripts(dir, "v1-and-v2", v1, v2Widen))
+
+        assertEquals(listOf(alice), repository(migrated.dataSource).all())
+        val nullable = migrated.dataSource.connection.use { c ->
+            c.createStatement().executeQuery(
+                "select column_name, is_nullable from information_schema.columns " +
+                    "where table_name = 'CHARACTERS' and column_name in ('ACCESS_TOKEN', 'REFRESH_TOKEN') order by column_name",
+            ).use { rs -> buildList { while (rs.next()) add(rs.getString(1) to rs.getString(2)) } }
+        }
+        assertEquals(listOf("ACCESS_TOKEN" to "NO", "REFRESH_TOKEN" to "NO"), nullable)
     }
 }

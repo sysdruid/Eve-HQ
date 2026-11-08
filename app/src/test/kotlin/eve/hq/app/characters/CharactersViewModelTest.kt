@@ -91,4 +91,16 @@ class CharactersViewModelTest {
 
         assertEquals(listOf("Bob"), viewModel.state.value.characters.map { it.name })
     }
+
+    @Test
+    fun `an unexpected failure shows an error instead of waiting forever, and a new login can start`() {
+        val viewModel = system.viewModel()
+        viewModel.addCharacter()
+
+        system.sso.fail(IllegalStateException("database is locked"))
+
+        assertEquals(LoginState.Failed("Unexpected error: database is locked"), viewModel.state.value.login)
+        viewModel.addCharacter()
+        assertEquals(LoginState.WaitingForBrowser, viewModel.state.value.login)
+    }
 }

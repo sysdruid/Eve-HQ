@@ -15,7 +15,7 @@ import org.jooq.impl.DSL
 import java.time.ZoneOffset
 import javax.sql.DataSource
 
-class JooqCharacterRepository(dataSource: DataSource) : CharacterRepository {
+class JooqCharacterRepository(dataSource: DataSource, private val cipher: TokenCipher) : CharacterRepository {
     // Unquoted names let each database fold case itself (H2 upper, Postgres lower), so the lowercase
     // generated names match without H2-specific quoting.
     private val dsl: DSLContext = DSL.using(
@@ -35,8 +35,8 @@ class JooqCharacterRepository(dataSource: DataSource) : CharacterRepository {
         }
         val columns = mapOf<Field<*>, Any?>(
             CHARACTERS.NAME to character.name,
-            CHARACTERS.ACCESS_TOKEN to character.token.accessToken,
-            CHARACTERS.REFRESH_TOKEN to character.token.refreshToken,
+            CHARACTERS.ACCESS_TOKEN to cipher.encrypt(character.token.accessToken),
+            CHARACTERS.REFRESH_TOKEN to cipher.encrypt(character.token.refreshToken),
             CHARACTERS.TOKEN_EXPIRES_AT to character.token.expiresAt.atOffset(ZoneOffset.UTC),
             CHARACTERS.STATUS to status,
             CHARACTERS.INVALID_REASON to invalidReason,
@@ -54,10 +54,12 @@ class JooqCharacterRepository(dataSource: DataSource) : CharacterRepository {
         dsl.deleteFrom(CHARACTERS).where(CHARACTERS.ID.eq(id)).execute()
     }
 
+    private fun reveal(stored: String) = if (cipher.isEncrypted(stored)) cipher.decrypt(stored) else stored
+
     private fun toCharacter(record: CharactersRecord) = EveCharacter(
         id = record.id,
         name = record.name,
-        token = AuthToken(record.accessToken, record.refreshToken, record.tokenExpiresAt.toInstant()),
+        token = AuthToken(reveal(record.accessToken), reveal(record.refreshToken), record.tokenExpiresAt.toInstant()),
         status = when (record.status) {
             "VALID" -> CharacterStatus.Valid
             else -> CharacterStatus.Invalid(record.invalidReason.orEmpty())

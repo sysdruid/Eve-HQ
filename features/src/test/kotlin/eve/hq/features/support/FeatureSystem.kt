@@ -12,8 +12,10 @@ import eve.hq.core.character.AuthToken
 import eve.hq.core.character.TokenRefresher
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.Migrations
+import eve.hq.data.TokenCipher
 import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
+import java.security.SecureRandom
 import java.util.UUID
 
 /**
@@ -29,7 +31,7 @@ class FeatureSystem {
 
     val sso = FakeSso()
     val refresher = FakeTokenRefresher()
-    private val repository: CharacterRepository = JooqCharacterRepository(dataSource)
+    private val repository: CharacterRepository = JooqCharacterRepository(dataSource, TokenCipher(ByteArray(32).also(SecureRandom()::nextBytes)))
 
     fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
 

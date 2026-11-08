@@ -10,10 +10,12 @@ import eve.hq.core.character.SsoAuthenticator
 import eve.hq.core.character.CharacterStatus
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.Migrations
+import eve.hq.data.TokenCipher
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import org.h2.jdbcx.JdbcDataSource
+import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
 
@@ -26,7 +28,12 @@ class ManualSso : SsoAuthenticator {
 
     override suspend fun login(): EveCharacter {
         loginsStarted++
-        return pending.await().also { pending = CompletableDeferred() }
+        val attempt = pending
+        try {
+            return attempt.await()
+        } finally {
+            if (attempt === pending && attempt.isCompleted) pending = CompletableDeferred()
+        }
     }
 
     fun succeed(character: EveCharacter) = pending.complete(character)
@@ -40,7 +47,7 @@ class AppSystem(private val scope: CoroutineScope, private val dispatcher: Corou
         setURL("jdbc:h2:mem:${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
     }.also(Migrations::migrate)
 
-    val repository: CharacterRepository = JooqCharacterRepository(dataSource)
+    val repository: CharacterRepository = JooqCharacterRepository(dataSource, TokenCipher(ByteArray(32).also(SecureRandom()::nextBytes)))
     val sso = ManualSso()
 
     fun viewModel() = CharactersViewModel(

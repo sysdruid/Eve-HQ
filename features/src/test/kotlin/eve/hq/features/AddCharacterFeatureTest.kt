@@ -86,4 +86,15 @@ class AddCharacterFeatureTest {
 
         assertEquals(listOf("Alice"), system.listCharacters().map { it.name })
     }
+
+    @Test
+    fun `given a login that granted every scope, its very long access token is stored`() = runBlocking {
+        val allScopesToken = "x".repeat(6_000)
+        system.given { }
+        system.sso.next = { aCharacter(id = 1, name = "Alice", token = aToken(access = allScopesToken)) }
+
+        system.addCharacter()
+
+        assertEquals(listOf(allScopesToken), system.listCharacters().map { it.token.accessToken })
+    }
 }

@@ -7,6 +7,7 @@ import eve.hq.core.character.LoginFailed
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.character.RemoveCharacter
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +55,10 @@ class CharactersViewModel(
                 _state.update { it.copy(login = LoginState.Idle) }
             } catch (e: LoginFailed) {
                 _state.update { it.copy(login = LoginState.Failed(e.message.orEmpty())) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(login = LoginState.Failed("Unexpected error: ${e.message ?: e::class.simpleName}")) }
             }
         }
     }

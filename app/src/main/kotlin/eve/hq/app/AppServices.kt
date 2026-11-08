@@ -7,6 +7,7 @@ import eve.hq.core.character.RemoveCharacter
 import eve.hq.data.AppConfig
 import eve.hq.data.FileDatabase
 import eve.hq.data.JooqCharacterRepository
+import eve.hq.data.TokenCipher
 import eve.hq.data.sso.EveSsoAuthenticator
 import eve.hq.data.sso.SsoConfig
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +20,7 @@ object AppServices {
     fun characters(dataDir: Path): CharactersViewModel {
         val config = AppConfig.load(dataDir)
         val database = FileDatabase.open(dataDir, Clock.systemUTC())
-        val repository = JooqCharacterRepository(database.dataSource)
+        val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
         val sso = SsoConfig(clientId = config.ssoClientId, scopes = config.ssoScopes)
         val authenticator = EveSsoAuthenticator.create(sso, BrowserLauncher::open)
         return CharactersViewModel(
