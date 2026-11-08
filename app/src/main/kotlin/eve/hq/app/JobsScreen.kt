@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -63,9 +64,12 @@ private fun JobLineStatus.barColor() = when (this) {
 }
 
 @Composable
-private fun JobLineItem(line: JobLine) {
+internal fun JobLineItem(line: JobLine) {
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(TRACK)) {
-        Box(Modifier.matchParentSize().fillMaxWidth(line.progress).background(line.status.barColor()))
+        // matchParentSize pins the constraints to the full row, so the fraction must be applied to a child.
+        Box(Modifier.matchParentSize()) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(line.progress).background(line.status.barColor()))
+        }
         Text(line.text, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), color = TEXT)
     }
 }

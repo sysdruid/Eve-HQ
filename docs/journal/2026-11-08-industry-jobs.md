@@ -23,6 +23,7 @@
   - The GUI was not opened against real ESI: the ViewModel is tested, the Compose screen is only compiled. Facility names are fetched again on every refresh and failed characters lose their rows until the next success.
   - `advanceTimeBy(5_000)` in kotlinx-coroutines-test stops just before a task due at exactly 5 s, so the first tick test failed with an unchanged value; a `runCurrent()` runs the boundary task. The code was right and the test harness semantics were wrong.
   - Paused jobs get their own grey bar but the bar still follows wall-clock time, since `pause_date` is not read yet.
+  - The first progress-bar version showed every bar at 100%: `matchParentSize()` pins the child's constraints to the row, so `fillMaxWidth(fraction)` on the same modifier chain cannot shrink it. The ViewModel tests could not see this. An offscreen `ImageComposeScene` render sampling pixel colours reproduced it headlessly, and now guards the fix.
 
 ### Article Hook
 - **Publication Takeaway:** A test that silently never runs is worse than no test. In Kotlin, `= runBlocking { assertThat(...) }` skips itself without a warning, so count executed tests against declared ones whenever a new test style goes green on the first run.
