@@ -8,6 +8,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import kotlin.test.Test
 import eve.hq.core.character.LoginFailed
 import kotlin.test.assertEquals
@@ -86,6 +87,20 @@ class CallbackServerTest {
 
             assertEquals(404, favicon.statusCode())
             assertEquals("the-code", runBlocking { server.awaitCode(5.seconds) })
+        }
+    }
+
+    private fun visitAddress(address: String, port: Int): Int = browser.send(
+        HttpRequest.newBuilder(URI.create("http://$address:$port/callback?code=c&state=state-1")).build(),
+        HttpResponse.BodyHandlers.discarding(),
+    ).statusCode()
+
+    @Test
+    fun `the callback is reachable on both the IPv4 and IPv6 loopback, because browsers resolve localhost to either`() {
+        assumeTrue(runCatching { ServerSocket(0, 1, InetAddress.getByName("::1")).close() }.isSuccess, "no IPv6 loopback here")
+        CallbackServer.start(port = 0, expectedState = "state-1").use { server ->
+            assertEquals(200, visitAddress("127.0.0.1", server.port))
+            assertEquals(200, visitAddress("[::1]", server.port))
         }
     }
 }
