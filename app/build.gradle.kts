@@ -11,6 +11,8 @@ dependencies {
     implementation(compose.material3)
     implementation(libs.kotlinx.coroutines)
     implementation(libs.kotlinx.coroutines.swing)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.h2)

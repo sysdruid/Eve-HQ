@@ -12,12 +12,12 @@ import eve.hq.data.Platform
 
 fun main() {
     val dataDir = DataDir.open(Platform.current())
-    val characters = runCatching { AppServices.characters(dataDir) }
+    val services = runCatching { AppServices.create(dataDir) }
     application {
         Window(onCloseRequest = ::exitApplication, title = "Eve-HQ") {
             MaterialTheme {
-                characters.fold(
-                    onSuccess = { CharactersScreen(it) },
+                services.fold(
+                    onSuccess = { Dashboard(it) },
                     onFailure = { Text(it.message ?: it.toString(), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) },
                 )
             }

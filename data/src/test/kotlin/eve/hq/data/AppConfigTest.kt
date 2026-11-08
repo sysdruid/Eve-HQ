@@ -53,10 +53,10 @@ class AppConfigTest {
     }
 
     @Test
-    fun `without sso scopes only public data is requested`(@TempDir dir: Path) {
+    fun `without sso scopes the asset and structure scopes are requested`(@TempDir dir: Path) {
         writeConfig(dir, "sso.clientId=file-client\n")
 
-        assertEquals(listOf("publicData"), AppConfig.load(dir, env = emptyMap()).ssoScopes)
+        assertEquals(AppConfig.DEFAULT_SCOPES, AppConfig.load(dir, env = emptyMap()).ssoScopes)
     }
 
     @Test
@@ -64,7 +64,12 @@ class AppConfigTest {
         writeConfig(dir, "sso.clientId=c\nsso.scopes=publicData, esi-skills.read_skills.v1  esi-assets.read_assets.v1\n")
 
         assertEquals(
-            listOf("publicData", "esi-skills.read_skills.v1", "esi-assets.read_assets.v1"),
+            listOf(
+                "publicData",
+                "esi-skills.read_skills.v1",
+                "esi-assets.read_assets.v1",
+                "esi-universe.read_structures.v1",
+            ),
             AppConfig.load(dir, env = emptyMap()).ssoScopes,
         )
     }
@@ -73,6 +78,16 @@ class AppConfigTest {
     fun `a blank scopes line falls back to public data`(@TempDir dir: Path) {
         writeConfig(dir, "sso.clientId=c\nsso.scopes=  ,  \n")
 
-        assertEquals(listOf("publicData"), AppConfig.load(dir, env = emptyMap()).ssoScopes)
+        assertEquals(AppConfig.DEFAULT_SCOPES, AppConfig.load(dir, env = emptyMap()).ssoScopes)
+    }
+
+    @Test
+    fun `asset and structure scopes are included even when custom scopes are configured`(@TempDir dir: Path) {
+        writeConfig(dir, "sso.clientId=c\nsso.scopes=publicData\n")
+
+        assertEquals(
+            listOf("publicData", "esi-assets.read_assets.v1", "esi-universe.read_structures.v1"),
+            AppConfig.load(dir, env = emptyMap()).ssoScopes,
+        )
     }
 }
