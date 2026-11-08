@@ -24,6 +24,10 @@
     but the failed login had already closed the callback server. The message now states only the reason.
   - First launch printed a Skiko "Cannot create Linux GL context" and fell back to another renderer; the window
     still rendered. Checked with a Java `Robot` screen capture (cropped to the window, then deleted).
+  - First real run: the app waited forever and no browser tab opened. `xdg-open` 1.1.3 on KDE (here with no
+    `kfmclient`/`kde-config`) runs `kfmclient exec`, fails, and still exits 0, so nothing is reported. Launching it
+    without the desktop-detection variables (XDG_CURRENT_DESKTOP etc.) makes it use the default https handler.
+    Found by reading the script, then confirmed by running it plain (exit 0, no tab) and sanitised (tab opened).
   - TDD honesty: the invalid-status row mapping was written before its test, again.
 
 ### Article Hook
