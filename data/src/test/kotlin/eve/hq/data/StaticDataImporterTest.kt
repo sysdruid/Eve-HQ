@@ -44,6 +44,109 @@ class StaticDataImporterTest {
     }
 
     @Test
+    fun `imports the manufacturing recipe of a blueprint and ignores its other activities`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE,
+                blueprint = """{"_key":681,"activities":{"copying":{"time":480},"manufacturing":{"materials":[{"quantity":86,"typeID":38},{"quantity":10,"typeID":39}],"products":[{"quantity":1,"typeID":165}],"skills":[{"level":1,"typeID":3380}],"time":600},"research_material":{"time":210}},"blueprintTypeID":681,"maxProductionLimit":300}""",
+            ),
+        )
+
+        assertEquals(
+            Recipe(time = 600, materials = mapOf(38L to 86, 39L to 10), products = mapOf(165L to 1)),
+            importedRecipe(681, "manufacturing"),
+        )
+        assertNull(importedRecipe(681, "copying"))
+        assertNull(importedRecipe(681, "research_material"))
+    }
+
+    @Test
+    fun `imports a reaction recipe and keeps references to types the archive does not list`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE,
+                blueprint = """{"_key":681,"activities":{"reaction":{"materials":[{"quantity":100,"typeID":16657},{"quantity":100,"typeID":999999}],"products":[{"quantity":20,"typeID":16672}],"time":360}},"blueprintTypeID":681,"maxProductionLimit":1000000}""",
+            ),
+        )
+
+        assertEquals(
+            Recipe(time = 360, materials = mapOf(16657L to 100, 999999L to 100), products = mapOf(16672L to 20)),
+            importedRecipe(681, "reaction"),
+        )
+    }
+
+    @Test
+    fun `an activity without inputs or outputs is imported with just its time`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE,
+                blueprint = """{"_key":681,"activities":{"manufacturing":{"time":600}},"blueprintTypeID":681,"maxProductionLimit":1}""",
+            ),
+        )
+
+        assertEquals(Recipe(600, emptyMap(), emptyMap()), importedRecipe(681, "manufacturing"))
+    }
+
+    @Test
+    fun `a malformed material leaves existing static rows and recipes untouched`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        importer.importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE,
+                blueprint = """{"blueprintTypeID":681,"maxProductionLimit":300,"activities":{"manufacturing":{"materials":[{"quantity":86,"typeID":38}],"time":600}}}""",
+            ),
+        )
+        val malformed = archiveWithRecords(
+            dir,
+            CATEGORY,
+            GROUP,
+            RIFTER_BLUEPRINT_TYPE,
+            blueprint = """{"blueprintTypeID":681,"maxProductionLimit":300,"activities":{"manufacturing":{"materials":[{"typeID":38}],"time":600}}}""",
+        )
+
+        assertFailsWith<IllegalArgumentException> { importer.importArchive(malformed) }
+
+        assertEquals(Recipe(600, mapOf(38L to 86), emptyMap()), importedRecipe(681, "manufacturing"))
+    }
+
+    @Test
+    fun `a re-import replaces the previous recipes`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        fun archive(material: Int, time: Int) = archiveWithRecords(
+            dir,
+            CATEGORY,
+            GROUP,
+            RIFTER_BLUEPRINT_TYPE,
+            blueprint = """{"blueprintTypeID":681,"maxProductionLimit":300,"activities":{"manufacturing":{"materials":[{"quantity":$material,"typeID":38}],"products":[{"quantity":1,"typeID":165}],"time":$time}}}""",
+        )
+        importer.importArchive(archive(material = 86, time = 600))
+
+        importer.importArchive(archive(material = 90, time = 700))
+
+        assertEquals(Recipe(700, mapOf(38L to 90), mapOf(165L to 1)), importedRecipe(681, "manufacturing"))
+    }
+
+    @Test
     fun `imports unpublished types and ignores additional CCP fields`(@TempDir dir: Path) {
         Migrations.migrate(dataSource)
 
@@ -218,6 +321,28 @@ class StaticDataImporterTest {
         """{"_key":34,"groupID":18,"name":{"en":"Tritanium"},"published":true}""",
     )
 
+    private data class Recipe(val time: Int, val materials: Map<Long, Int>, val products: Map<Long, Int>)
+
+    private fun importedRecipe(blueprintTypeId: Long, activity: String): Recipe? = dataSource.connection.use { connection ->
+        fun quantities(table: String): Map<Long, Int> = connection.prepareStatement(
+            "select type_id, quantity from $table where blueprint_type_id = ? and activity = ?",
+        ).use { statement ->
+            statement.setLong(1, blueprintTypeId)
+            statement.setString(2, activity)
+            statement.executeQuery().use { result ->
+                buildMap { while (result.next()) put(result.getLong(1), result.getInt(2)) }
+            }
+        }
+        val time = connection.prepareStatement(
+            "select time_seconds from blueprint_activities where blueprint_type_id = ? and activity = ?",
+        ).use { statement ->
+            statement.setLong(1, blueprintTypeId)
+            statement.setString(2, activity)
+            statement.executeQuery().use { result -> if (result.next()) result.getInt(1) else null }
+        }
+        time?.let { Recipe(it, quantities("blueprint_materials"), quantities("blueprint_products")) }
+    }
+
     private fun importedMaxProductionLimit(typeId: Long): Int? = dataSource.connection.use { connection ->
         connection.prepareStatement("select max_production_limit from blueprints where type_id = ?").use { statement ->
             statement.setLong(1, typeId)
@@ -238,5 +363,11 @@ class StaticDataImporterTest {
         putNextEntry(ZipEntry(name))
         write("$record\n".toByteArray())
         closeEntry()
+    }
+
+    private companion object {
+        const val CATEGORY = """{"_key":6,"name":{"en":"Manufacture"},"published":true}"""
+        const val GROUP = """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}"""
+        const val RIFTER_BLUEPRINT_TYPE = """{"_key":681,"groupID":18,"name":{"en":"Rifter Blueprint"},"published":true}"""
     }
 }

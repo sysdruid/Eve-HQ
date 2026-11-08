@@ -3,6 +3,7 @@ package eve.hq.data
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -40,6 +41,9 @@ class StaticDataImporter(private val dataSource: DataSource) {
             dataSource.connection.use { connection ->
                 replaceData(connection) {
                     connection.createStatement().use { statement ->
+                        statement.executeUpdate("delete from blueprint_materials")
+                        statement.executeUpdate("delete from blueprint_products")
+                        statement.executeUpdate("delete from blueprint_activities")
                         statement.executeUpdate("delete from blueprints")
                         statement.executeUpdate("delete from types")
                         statement.executeUpdate("delete from groups")
@@ -122,16 +126,60 @@ class StaticDataImporter(private val dataSource: DataSource) {
     }
 
     private fun importBlueprints(zip: ZipFile, entry: ZipEntry, connection: Connection) {
-        importRecords(
-            zip,
-            entry,
-            connection,
-            "insert into blueprints (type_id, max_production_limit) values (?, ?)",
-        ) { statement, record, line ->
-            statement.setLong(1, record.requiredLong("blueprintTypeID", BLUEPRINTS, line))
-            statement.setInt(2, record.requiredLong("maxProductionLimit", BLUEPRINTS, line).toInt())
+        connection.prepareStatement("insert into blueprints (type_id, max_production_limit) values (?, ?)").use { blueprints ->
+            connection.prepareStatement(
+                "insert into blueprint_activities (blueprint_type_id, activity, time_seconds) values (?, ?, ?)",
+            ).use { activities ->
+                connection.prepareStatement(
+                    "insert into blueprint_materials (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
+                ).use { materials ->
+                    connection.prepareStatement(
+                        "insert into blueprint_products (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
+                    ).use { products ->
+                        // Parents are flushed before children so the foreign keys hold at every batch.
+                        val inserts = listOf(blueprints, activities, materials, products).map(::BatchedInsert)
+                        val (blueprintInsert, activityInsert, materialInsert, productInsert) = inserts
+                        forEachRecord(zip, entry) { record, line ->
+                            val blueprintId = record.requiredLong("blueprintTypeID", BLUEPRINTS, line)
+                            blueprintInsert.add {
+                                it.setLong(1, blueprintId)
+                                it.setInt(2, record.requiredLong("maxProductionLimit", BLUEPRINTS, line).toInt())
+                            }
+                            RECIPE_ACTIVITIES.forEach { activity ->
+                                val recipe = record["activities"]?.jsonObject?.get(activity)?.jsonObject ?: return@forEach
+                                activityInsert.add {
+                                    it.setLong(1, blueprintId)
+                                    it.setString(2, activity)
+                                    it.setInt(3, recipe.requiredLong("time", BLUEPRINTS, line).toInt())
+                                }
+                                recipe.quantities("materials", BLUEPRINTS, line).forEach { (typeId, quantity) ->
+                                    materialInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
+                                }
+                                recipe.quantities("products", BLUEPRINTS, line).forEach { (typeId, quantity) ->
+                                    productInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
+                                }
+                            }
+                            if (inserts.any(BatchedInsert::isFull)) inserts.forEach(BatchedInsert::flush)
+                        }
+                        inserts.forEach(BatchedInsert::flush)
+                    }
+                }
+            }
         }
     }
+
+    private fun PreparedStatement.bindRecipeLine(blueprintId: Long, activity: String, typeId: Long, quantity: Int) {
+        setLong(1, blueprintId)
+        setString(2, activity)
+        setLong(3, typeId)
+        setInt(4, quantity)
+    }
+
+    private fun JsonObject.quantities(field: String, entry: String, line: Int): List<Pair<Long, Int>> =
+        get(field)?.jsonArray.orEmpty().map { item ->
+            val material = item.jsonObject
+            material.requiredLong("typeID", entry, line) to material.requiredLong("quantity", entry, line).toInt()
+        }
 
     private fun importRecords(
         zip: ZipFile,
@@ -141,27 +189,45 @@ class StaticDataImporter(private val dataSource: DataSource) {
         bind: (PreparedStatement, JsonObject, Int) -> Unit,
     ) {
         connection.prepareStatement(sql).use { statement ->
-            zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-                var batched = 0
-                lines.forEachIndexed { index, text ->
-                    if (text.isNotBlank()) {
-                        val line = index + 1
-                        val record = try {
-                            Json.parseToJsonElement(text).jsonObject
-                        } catch (failure: Exception) {
-                            throw IllegalArgumentException("Invalid JSON in ${entry.name} at line $line", failure)
-                        }
-                        bind(statement, record, line)
-                        statement.addBatch()
-                        batched++
-                        if (batched == BATCH_SIZE) {
-                            statement.executeBatch()
-                            batched = 0
-                        }
-                    }
-                }
-                if (batched > 0) statement.executeBatch()
+            val insert = BatchedInsert(statement)
+            forEachRecord(zip, entry) { record, line ->
+                insert.add { bind(it, record, line) }
+                if (insert.isFull) insert.flush()
             }
+            insert.flush()
+        }
+    }
+
+    private fun forEachRecord(zip: ZipFile, entry: ZipEntry, action: (JsonObject, Int) -> Unit) {
+        zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+            lines.forEachIndexed { index, text ->
+                if (text.isNotBlank()) {
+                    val line = index + 1
+                    val record = try {
+                        Json.parseToJsonElement(text).jsonObject
+                    } catch (failure: Exception) {
+                        throw IllegalArgumentException("Invalid JSON in ${entry.name} at line $line", failure)
+                    }
+                    action(record, line)
+                }
+            }
+        }
+    }
+
+    private class BatchedInsert(private val statement: PreparedStatement) {
+        private var pending = 0
+
+        val isFull get() = pending >= BATCH_SIZE
+
+        fun add(bind: (PreparedStatement) -> Unit) {
+            bind(statement)
+            statement.addBatch()
+            pending++
+        }
+
+        fun flush() {
+            if (pending > 0) statement.executeBatch()
+            pending = 0
         }
     }
 
@@ -184,6 +250,7 @@ class StaticDataImporter(private val dataSource: DataSource) {
         private const val TYPES = "types.jsonl"
         private const val BLUEPRINTS = "blueprints.jsonl"
         private const val BATCH_SIZE = 1000
+        private val RECIPE_ACTIVITIES = listOf("manufacturing", "reaction")
         private val REQUIRED_ENTRIES = listOf(CATEGORIES, GROUPS, TYPES, BLUEPRINTS)
     }
 }
