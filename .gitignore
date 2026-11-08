@@ -1,0 +1,10 @@
+.gradle/
+build/
+.kotlin/
+*.mv.db
+*.trace.db
+local.properties
+
+# IDE
+.idea/
+*.iml
