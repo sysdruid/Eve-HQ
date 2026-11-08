@@ -11,6 +11,10 @@
     browser" state is observable. The Compose screen and browser launcher are thin edges and are not unit-tested.
   - Composition root (`AppServices`) loads config, opens the file database, builds the SSO stack via a factory in
     `data`, so `app` needs no HTTP dependencies. Config or database failures render on screen, not as a crash.
+  - Scopes are configuration (`sso.scopes` in config.properties, default `publicData`): the consent screen showed
+    only "public data" because that is all we asked for; the client secret is irrelevant to PKCE and to scopes.
+    The owner requests all 73 (`publicData` plus ESI's 72, from esi.evetech.net/meta/openapi.json) to avoid
+    re-authorising per feature; that includes write scopes while tokens are still stored unencrypted.
   - Portraits deferred: they need an HTTP and image-decoding layer for little iteration-1 value.
 
 ### Friction & Gotchas

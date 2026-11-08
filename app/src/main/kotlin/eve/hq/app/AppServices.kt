@@ -20,7 +20,7 @@ object AppServices {
         val config = AppConfig.load(dataDir)
         val database = FileDatabase.open(dataDir, Clock.systemUTC())
         val repository = JooqCharacterRepository(database.dataSource)
-        val sso = SsoConfig(clientId = config.ssoClientId)
+        val sso = SsoConfig(clientId = config.ssoClientId, scopes = config.ssoScopes)
         val authenticator = EveSsoAuthenticator.create(sso, BrowserLauncher::open)
         return CharactersViewModel(
             ListCharacters(repository),

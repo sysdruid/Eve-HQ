@@ -51,4 +51,28 @@ class AppConfigTest {
 
         assertFailsWith<MissingConfig> { AppConfig.load(dir, env = emptyMap()) }
     }
+
+    @Test
+    fun `without sso scopes only public data is requested`(@TempDir dir: Path) {
+        writeConfig(dir, "sso.clientId=file-client\n")
+
+        assertEquals(listOf("publicData"), AppConfig.load(dir, env = emptyMap()).ssoScopes)
+    }
+
+    @Test
+    fun `scopes are read from the file, separated by spaces or commas`(@TempDir dir: Path) {
+        writeConfig(dir, "sso.clientId=c\nsso.scopes=publicData, esi-skills.read_skills.v1  esi-assets.read_assets.v1\n")
+
+        assertEquals(
+            listOf("publicData", "esi-skills.read_skills.v1", "esi-assets.read_assets.v1"),
+            AppConfig.load(dir, env = emptyMap()).ssoScopes,
+        )
+    }
+
+    @Test
+    fun `a blank scopes line falls back to public data`(@TempDir dir: Path) {
+        writeConfig(dir, "sso.clientId=c\nsso.scopes=  ,  \n")
+
+        assertEquals(listOf("publicData"), AppConfig.load(dir, env = emptyMap()).ssoScopes)
+    }
 }
