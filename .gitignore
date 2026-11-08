@@ -8,3 +8,6 @@ local.properties
 # IDE
 .idea/
 *.iml
+
+# Local working plan (created by the tdd skill), deliberately not committed
+TESTLIST.md

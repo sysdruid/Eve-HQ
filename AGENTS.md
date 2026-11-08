@@ -19,7 +19,7 @@ Kotlin Multiplatform (Compose Desktop) operations dashboard for managing EVE Onl
 
 Iteration 1 in progress: log in via EVE SSO and list characters. The Gradle skeleton
 (`core`, `data`, `app`) builds; domain logic, persistence and UI are being added step by step.
-The plan lives in `TESTLIST.md`.
+The working plan is kept in a local, untracked `TESTLIST.md` (the `tdd` skill creates it).
 
 ## Additional rules
 
