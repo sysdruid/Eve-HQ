@@ -36,12 +36,13 @@ import java.time.format.DateTimeFormatter
 class EveAssetSource(
     private val http: HttpClient,
     baseUrl: String = "https://esi.evetech.net/latest/",
-    private val staticTypeNames: StaticTypeNameRepository? = null,
+    staticTypeNames: StaticTypeNameRepository? = null,
     private val assetCache: AssetCache? = null,
     private val clock: Clock = Clock.systemUTC(),
 ) : AssetSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
+    private val names = EsiNames(http, baseUrl, staticTypeNames)
 
     override fun cachedSnapshot(characterId: Long) = assetCache?.findSnapshot(characterId)
 
@@ -49,8 +50,7 @@ class EveAssetSource(
         val loadedPages = loadPages(character)
         val assets = loadedPages.assets
         val typeIds = assets.map(EsiAsset::typeId).distinct()
-        val staticNames = staticTypeNames?.findNames(typeIds).orEmpty()
-        val typeNames = loadTypeNames(typeIds.filterNot(staticNames::containsKey)) + staticNames
+        val typeNames = names.typeNames(typeIds)
         val itemNames = loadItemNames(character, assets.map(EsiAsset::itemId))
         val locationNames = loadLocationNames(character, assets)
         val itemIds = assets.mapTo(mutableSetOf(), EsiAsset::itemId)
@@ -124,41 +124,6 @@ class EveAssetSource(
         runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }.getOrNull()
     }
 
-    private suspend fun loadTypeNames(typeIds: List<Long>): Map<Long, String> = typeIds.chunked(LOOKUP_BATCH_SIZE)
-        .flatMap { ids -> loadTypeNamesBatch(ids) }
-        .associate { it.id to it.name }
-
-    private suspend fun loadTypeNamesBatch(ids: List<Long>): List<EsiName> {
-        val pending = ArrayDeque<List<Long>>()
-        val names = mutableListOf<EsiName>()
-        pending.addLast(ids)
-        var requests = 0
-        while (pending.isNotEmpty() && requests < MAX_TYPE_LOOKUPS_PER_BATCH) {
-            val batch = pending.removeFirst()
-            requests++
-            try {
-                val response = http.post(url("universe/names/")) {
-                    contentType(ContentType.Application.Json)
-                    setBody(json.encodeToString(batch))
-                }
-                val body = response.bodyAsText()
-                when {
-                    response.status == HttpStatusCode.NotFound && batch.size > 1 -> {
-                        val middle = batch.size / 2
-                        // ESI rejects a whole batch for one unknown ID; bound retries if the endpoint itself is unavailable.
-                        pending.addLast(batch.take(middle))
-                        pending.addLast(batch.drop(middle))
-                    }
-
-                    response.status.isSuccess() -> names += json.decodeFromString<List<EsiName>>(body)
-                }
-            } catch (_: IOException) {
-                break
-            }
-        }
-        return names
-    }
-
     private suspend fun loadItemNames(character: EveCharacter, itemIds: List<Long>): Map<Long, String> =
         itemIds.distinct().chunked(LOOKUP_BATCH_SIZE).flatMap { ids ->
             try {
@@ -179,33 +144,13 @@ class EveAssetSource(
         val roots = assets.filter { it.locationId !in itemIds }.distinctBy(EsiAsset::locationId)
         return roots.mapNotNull { asset ->
             val name = when {
-                asset.locationId >= STRUCTURE_ID_MIN -> structureName(asset.locationId, character)
-                asset.locationType == "station" -> stationName(asset.locationId)
-                asset.locationType == "solar_system" -> systemName(asset.locationId)
+                asset.locationId >= STRUCTURE_ID_MIN -> names.structureName(asset.locationId, character.token.accessToken)
+                asset.locationType == "station" -> names.stationName(asset.locationId)
+                asset.locationType == "solar_system" -> names.systemName(asset.locationId)
                 else -> null
             }
             name?.let { asset.locationId to it }
         }.toMap()
-    }
-
-    private suspend fun stationName(id: Long): String? = getLocation("universe/stations/$id/")
-
-    private suspend fun systemName(id: Long): String? = getLocation("universe/systems/$id/")
-
-    private suspend fun structureName(id: Long, character: EveCharacter): String? =
-        getLocation("universe/structures/$id/", character.token.accessToken)
-
-    private suspend fun getLocation(path: String, accessToken: String? = null): String? = try {
-        http.get(url(path)) {
-            if (accessToken != null) bearerAuth(accessToken)
-        }.locationName()
-    } catch (_: IOException) {
-        null
-    }
-
-    private suspend fun HttpResponse.locationName(): String? {
-        val body = bodyAsText()
-        return if (status.isSuccess()) json.decodeFromString<EsiLocation>(body).name else null
     }
 
     private suspend fun HttpResponse.bodyFor(endpoint: String, requiresAssetScope: Boolean = false): String {
@@ -231,19 +176,12 @@ class EveAssetSource(
     )
 
     @Serializable
-    private data class EsiName(val id: Long, val name: String)
-
-    @Serializable
     private data class EsiAssetName(@SerialName("item_id") val itemId: Long, val name: String)
-
-    @Serializable
-    private data class EsiLocation(val name: String)
 
     private data class LoadedAssetPages(val assets: List<EsiAsset>, val pages: List<CachedAssetPage>)
 
     companion object {
         private const val LOOKUP_BATCH_SIZE = 1000
-        private const val MAX_TYPE_LOOKUPS_PER_BATCH = 8
         private const val STRUCTURE_ID_MIN = 1_000_000_000_000L
     }
 }
