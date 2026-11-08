@@ -60,6 +60,25 @@ class AppConfigTest {
     }
 
     @Test
+    fun `by default every ESI scope is requested so characters never need to log in again for new features`(@TempDir dir: Path) {
+        writeConfig(dir, "sso.clientId=file-client\n")
+
+        val scopes = AppConfig.load(dir, env = emptyMap()).ssoScopes
+
+        assertTrue(
+            scopes.containsAll(
+                listOf(
+                    "publicData",
+                    "esi-industry.read_character_jobs.v1",
+                    "esi-markets.read_character_orders.v1",
+                    "esi-wallet.read_character_wallet.v1",
+                ),
+            ),
+            scopes.toString(),
+        )
+    }
+
+    @Test
     fun `scopes are read from the file, separated by spaces or commas`(@TempDir dir: Path) {
         writeConfig(dir, "sso.clientId=c\nsso.scopes=publicData, esi-skills.read_skills.v1  esi-assets.read_assets.v1\n")
 
