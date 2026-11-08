@@ -5,4 +5,6 @@ plugins {
 
 dependencies {
     implementation(project(":core"))
+    implementation(libs.flyway.core)
+    implementation(libs.h2)
 }

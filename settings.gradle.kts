@@ -15,4 +15,4 @@ dependencyResolutionManagement {
     }
 }
 
-include("core", "data", "app")
+include("core", "data", "app", "features")

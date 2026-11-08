@@ -3,10 +3,16 @@ kotlin = "2.4.0"
 compose = "1.11.1"
 junit = "5.12.2"
 coroutines = "1.11.0"
+h2 = "2.5.252"
+flyway = "13.12.1"
+jdbscript = "1.4.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test-junit5", version.ref = "kotlin" }
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+jdbscript = { module = "org.jdbscript:jdbscript", version.ref = "jdbscript" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 
 [plugins]
