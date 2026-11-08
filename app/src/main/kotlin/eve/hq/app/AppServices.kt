@@ -2,19 +2,24 @@ package eve.hq.app
 
 import eve.hq.app.assets.AssetsViewModel
 import eve.hq.app.characters.CharactersViewModel
+import eve.hq.app.jobs.JobsViewModel
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.character.AddCharacter
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
+import eve.hq.core.industry.ListJobs
+import eve.hq.core.industry.RefreshingJobSource
 import eve.hq.data.AppConfig
 import eve.hq.data.FileDatabase
 import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
+import eve.hq.data.JooqJobPageCache
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
 import eve.hq.data.esi.EveAssetSource
+import eve.hq.data.esi.EveJobSource
 import eve.hq.data.sso.EveSsoAuthenticator
 import eve.hq.data.sso.EveTokenRefresher
 import eve.hq.data.sso.SsoConfig
@@ -27,7 +32,11 @@ import kotlinx.coroutines.SupervisorJob
 import java.nio.file.Path
 import java.time.Clock
 
-data class AppViewModels(val characters: CharactersViewModel, val assets: Lazy<AssetsViewModel>)
+data class AppViewModels(
+    val characters: CharactersViewModel,
+    val assets: Lazy<AssetsViewModel>,
+    val jobs: Lazy<JobsViewModel>,
+)
 
 object AppServices {
     fun create(dataDir: Path): AppViewModels {
@@ -36,6 +45,7 @@ object AppServices {
         val database = FileDatabase.open(dataDir, clock)
         val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
         val assetCache = JooqAssetCacheRepository(database.dataSource)
+        val jobPageCache = JooqJobPageCache(database.dataSource)
         val staticTypeNames = StaticTypeNameRepository(database.dataSource)
         val sso = SsoConfig(clientId = config.ssoClientId, scopes = config.ssoScopes)
         val authenticator = EveSsoAuthenticator.create(sso, BrowserLauncher::open)
@@ -48,17 +58,26 @@ object AppServices {
             scope,
             Dispatchers.IO,
         )
+        val http = lazy { HttpClient(CIO) }
+        val refreshToken = lazy { RefreshCharacterToken(repository, EveTokenRefresher(SsoTokenClient(http.value, sso))) }
         val assets = lazy {
-            val http = HttpClient(CIO)
-            val refresher = EveTokenRefresher(SsoTokenClient(http, sso))
             val source = RefreshingAssetSource(
                 repository,
-                RefreshCharacterToken(repository, refresher),
+                refreshToken.value,
                 clock,
-                EveAssetSource(http, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock),
+                EveAssetSource(http.value, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock),
             )
             AssetsViewModel(listCharacters, ListAssets(source), scope, Dispatchers.IO)
         }
-        return AppViewModels(characters, assets)
+        val jobs = lazy {
+            val source = RefreshingJobSource(
+                repository,
+                refreshToken.value,
+                clock,
+                EveJobSource(http.value, staticTypeNames = staticTypeNames, pageCache = jobPageCache, clock = clock),
+            )
+            JobsViewModel(listCharacters, ListJobs(source, clock), clock, scope, Dispatchers.IO)
+        }
+        return AppViewModels(characters, assets, jobs)
     }
 }

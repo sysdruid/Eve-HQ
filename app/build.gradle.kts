@@ -15,6 +15,7 @@ dependencies {
     implementation(libs.ktor.client.cio)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.assertj.core)
     testImplementation(libs.h2)
 }
 
