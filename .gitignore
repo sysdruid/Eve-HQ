@@ -11,3 +11,4 @@ local.properties
 
 # Local working plan (created by the tdd skill), deliberately not committed
 TESTLIST.md
+*.hprof

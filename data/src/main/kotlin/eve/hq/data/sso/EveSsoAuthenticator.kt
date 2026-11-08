@@ -4,6 +4,8 @@ import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
 import eve.hq.core.character.LoginFailed
 import eve.hq.core.character.SsoAuthenticator
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import java.io.IOException
 import java.net.URI
 import kotlin.time.Duration
@@ -19,7 +21,14 @@ class EveSsoAuthenticator(
         val verifier = Pkce.newVerifier()
         val state = Pkce.newVerifier()
         val code = CallbackServer.start(config.callbackPort, state).use { callback ->
-            openBrowser(AuthorizeUrl.build(config, Pkce.challengeFor(verifier), state))
+            val authorizeUrl = AuthorizeUrl.build(config, Pkce.challengeFor(verifier), state)
+            try {
+                openBrowser(authorizeUrl)
+            } catch (e: IOException) {
+                throw LoginFailed("could not open a browser: ${e.message}", e)
+            } catch (e: UnsupportedOperationException) {
+                throw LoginFailed("could not open a browser: ${e.message ?: "not supported on this system"}", e)
+            }
             callback.awaitCode(timeout)
         }
         try {
@@ -39,5 +48,10 @@ class EveSsoAuthenticator(
         } catch (e: IOException) {
             throw LoginFailed("could not reach EVE SSO: ${e.message}", e)
         }
+    }
+
+    companion object {
+        fun create(config: SsoConfig, openBrowser: (URI) -> Unit): EveSsoAuthenticator =
+            EveSsoAuthenticator(config, SsoTokenClient(HttpClient(CIO), config), openBrowser)
     }
 }

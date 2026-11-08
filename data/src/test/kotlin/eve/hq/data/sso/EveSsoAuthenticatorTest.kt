@@ -25,6 +25,7 @@ import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 class EveSsoAuthenticatorTest {
@@ -138,5 +139,17 @@ class EveSsoAuthenticatorTest {
         val odd = tokens(body = """{"access_token":"garbage","expires_in":1199,"refresh_token":"r"}""")
 
         assertFailsWith<LoginFailed> { runBlocking { EveSsoAuthenticator(config, odd, cooperativeBrowser()).login() } }
+    }
+
+    @Test
+    fun `when the browser cannot be opened, the login fails with the reason and the callback port is released`() {
+        val noBrowser: (URI) -> Unit = { throw IOException("no browser available") }
+
+        val failure = assertFailsWith<LoginFailed> {
+            runBlocking { EveSsoAuthenticator(config, tokens(), noBrowser).login() }
+        }
+
+        assertTrue("no browser available" in failure.message!!, failure.message)
+        runBlocking { EveSsoAuthenticator(config, tokens(), cooperativeBrowser()).login() }
     }
 }

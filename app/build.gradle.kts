@@ -9,6 +9,11 @@ dependencies {
     implementation(project(":data"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation(libs.kotlinx.coroutines)
+    implementation(libs.kotlinx.coroutines.swing)
+
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.h2)
 }
 
 compose.desktop {
