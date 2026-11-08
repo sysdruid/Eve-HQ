@@ -1,10 +1,13 @@
 package eve.hq.app
 
 import eve.hq.app.assets.AssetsViewModel
+import eve.hq.app.blueprints.BlueprintsViewModel
 import eve.hq.app.characters.CharactersViewModel
 import eve.hq.app.jobs.JobsViewModel
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
+import eve.hq.core.blueprint.ListBlueprints
+import eve.hq.core.blueprint.RefreshingBlueprintSource
 import eve.hq.core.character.AddCharacter
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.character.RefreshCharacterToken
@@ -16,9 +19,11 @@ import eve.hq.data.FileDatabase
 import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
+import eve.hq.data.StaticBlueprintRepository
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
 import eve.hq.data.esi.EveAssetSource
+import eve.hq.data.esi.EveBlueprintSource
 import eve.hq.data.esi.EveJobSource
 import eve.hq.data.sso.EveSsoAuthenticator
 import eve.hq.data.sso.EveTokenRefresher
@@ -36,6 +41,7 @@ data class AppViewModels(
     val characters: CharactersViewModel,
     val assets: Lazy<AssetsViewModel>,
     val jobs: Lazy<JobsViewModel>,
+    val blueprints: Lazy<BlueprintsViewModel>,
 )
 
 object AppServices {
@@ -45,6 +51,7 @@ object AppServices {
         val database = FileDatabase.open(dataDir, clock)
         val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
         val assetCache = JooqAssetCacheRepository(database.dataSource)
+        val staticBlueprints = StaticBlueprintRepository(database.dataSource)
         val jobPageCache = JooqJobPageCache(database.dataSource)
         val staticTypeNames = StaticTypeNameRepository(database.dataSource)
         val sso = SsoConfig(clientId = config.ssoClientId, scopes = config.ssoScopes)
@@ -69,15 +76,26 @@ object AppServices {
             )
             AssetsViewModel(listCharacters, ListAssets(source), scope, Dispatchers.IO)
         }
-        val jobs = lazy {
-            val source = RefreshingJobSource(
+        val jobSource = lazy {
+            RefreshingJobSource(
                 repository,
                 refreshToken.value,
                 clock,
                 EveJobSource(http.value, staticTypeNames = staticTypeNames, pageCache = jobPageCache, clock = clock),
             )
-            JobsViewModel(listCharacters, ListJobs(source, clock), clock, scope, Dispatchers.IO)
         }
-        return AppViewModels(characters, assets, jobs)
+        val jobs = lazy {
+            JobsViewModel(listCharacters, ListJobs(jobSource.value, clock), clock, scope, Dispatchers.IO)
+        }
+        val blueprints = lazy {
+            val source = RefreshingBlueprintSource(
+                repository,
+                refreshToken.value,
+                clock,
+                EveBlueprintSource(http.value, staticTypeNames = staticTypeNames, staticBlueprints = staticBlueprints),
+            )
+            BlueprintsViewModel(listCharacters, ListBlueprints(source, jobSource.value), clock, scope, Dispatchers.IO)
+        }
+        return AppViewModels(characters, assets, jobs, blueprints)
     }
 }

@@ -22,12 +22,14 @@ fun Dashboard(viewModels: AppViewModels) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Characters") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Assets") })
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Jobs") })
+            Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Blueprints") })
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (selectedTab) {
                 0 -> CharactersScreen(viewModels.characters)
                 1 -> AssetsScreen(viewModels.assets.value)
                 2 -> JobsScreen(viewModels.jobs.value)
+                3 -> BlueprintsScreen(viewModels.blueprints.value)
             }
         }
     }

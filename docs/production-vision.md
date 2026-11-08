@@ -108,8 +108,9 @@ For derived requirements:
 
 ## Roadmap
 
-1. Import blueprint data from the SDE (manufacturing, reactions, products per run, build times) and the type
-   attributes selectors need (group, race, tech level).
+1. Import blueprint data from the SDE. Done so far: max production limit per blueprint, shown nowhere but kept for
+   planning, with the Blueprints tab. Still to do: materials, products per run, build times, and the type attributes
+   selectors need (group, race, tech level).
 2. Core planner: output goals, stop items, stock to jobs per phase (pure logic, test-first).
 2b. Readiness goals: selectors, per-job run counts from the speed multiplier, max basket x scale; fixed-run copies.
 3. Stock sources: assets at counting locations, unclaimed and running job output, BPC runs, with manual stockpile signals and derived base-material signals.
