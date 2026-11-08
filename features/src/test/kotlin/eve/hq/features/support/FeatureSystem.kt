@@ -5,8 +5,11 @@ import eve.hq.core.character.CharacterRepository
 import eve.hq.core.character.EveCharacter
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.character.MarkCharacterInvalid
+import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
 import eve.hq.core.character.SsoAuthenticator
+import eve.hq.core.character.AuthToken
+import eve.hq.core.character.TokenRefresher
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.Migrations
 import org.h2.jdbcx.JdbcDataSource
@@ -25,6 +28,7 @@ class FeatureSystem {
     private val engine = JDBEngine.builder(ICharactersSchema::class.java).dataSource(dataSource).build()
 
     val sso = FakeSso()
+    val refresher = FakeTokenRefresher()
     private val repository: CharacterRepository = JooqCharacterRepository(dataSource)
 
     fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
@@ -33,10 +37,17 @@ class FeatureSystem {
     suspend fun addCharacter(): EveCharacter = AddCharacter(sso, repository)()
     fun markInvalid(id: Long, reason: String) = MarkCharacterInvalid(repository)(id, reason)
     fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
+    suspend fun refreshToken(id: Long) = RefreshCharacterToken(repository, refresher)(id)
 }
 
 class FakeSso : SsoAuthenticator {
     var next: () -> EveCharacter = { error("no login scripted") }
 
     override suspend fun login(): EveCharacter = next()
+}
+
+class FakeTokenRefresher : TokenRefresher {
+    var next: (String) -> AuthToken = { error("no refresh scripted") }
+
+    override suspend fun refresh(refreshToken: String): AuthToken = next(refreshToken)
 }
