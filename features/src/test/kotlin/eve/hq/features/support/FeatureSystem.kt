@@ -24,6 +24,7 @@ import eve.hq.data.EsiMock
 import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
+import eve.hq.data.JooqLocationNameCache
 import eve.hq.data.Migrations
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
@@ -92,6 +93,7 @@ class FeatureSystem {
             staticTypeNames = StaticTypeNameRepository(dataSource),
             pageCache = JooqJobPageCache(dataSource),
             clock = clock,
+            locationNames = JooqLocationNameCache(dataSource),
         ),
     )
 
@@ -105,6 +107,8 @@ class FeatureSystem {
                 baseUrl = esi.baseUrl,
                 staticTypeNames = StaticTypeNameRepository(dataSource),
                 staticBlueprints = StaticBlueprintRepository(dataSource),
+                locationNames = JooqLocationNameCache(dataSource),
+                clock = clock,
             ),
         ),
         newJobSource(),
@@ -117,6 +121,7 @@ class FeatureSystem {
             staticTypeNames = StaticTypeNameRepository(dataSource),
             assetCache = JooqAssetCacheRepository(dataSource),
             clock = clock,
+            locationNames = JooqLocationNameCache(dataSource),
         )
         val refreshingSource = RefreshingAssetSource(
             repository,

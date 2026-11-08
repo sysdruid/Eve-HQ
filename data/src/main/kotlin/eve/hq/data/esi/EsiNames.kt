@@ -1,12 +1,12 @@
 package eve.hq.data.esi
 
+import eve.hq.data.LocationNameCache
 import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -15,12 +15,16 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.IOException
+import java.time.Clock
+import java.time.Duration
 
 /** Resolves ids to display names: types from static data first, then ESI; locations from ESI. */
 internal class EsiNames(
     private val http: HttpClient,
     baseUrl: String,
     private val staticTypeNames: StaticTypeNameRepository?,
+    private val locationNames: LocationNameCache? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
@@ -35,12 +39,12 @@ internal class EsiNames(
     suspend fun stationOrStructureName(id: Long, accessToken: String): String? =
         if (id >= STRUCTURE_ID_MIN) structureName(id, accessToken) else stationName(id)
 
-    suspend fun stationName(id: Long): String? = getLocation("universe/stations/$id/")
+    suspend fun stationName(id: Long): String? = location(id, "universe/stations/$id/")
 
-    suspend fun systemName(id: Long): String? = getLocation("universe/systems/$id/")
+    suspend fun systemName(id: Long): String? = location(id, "universe/systems/$id/")
 
     suspend fun structureName(id: Long, accessToken: String): String? =
-        getLocation("universe/structures/$id/", accessToken)
+        location(id, "universe/structures/$id/", accessToken)
 
     private suspend fun loadTypeNames(typeIds: List<Long>): Map<Long, String> = typeIds.chunked(LOOKUP_BATCH_SIZE)
         .flatMap { ids -> loadTypeNamesBatch(ids) }
@@ -77,17 +81,38 @@ internal class EsiNames(
         return names
     }
 
-    private suspend fun getLocation(path: String, accessToken: String? = null): String? = try {
-        http.get(url(path)) {
-            if (accessToken != null) bearerAuth(accessToken)
-        }.locationName()
-    } catch (_: IOException) {
-        null
+    private suspend fun location(id: Long, path: String, accessToken: String? = null): String? {
+        val cached = locationNames?.find(id)
+        if (cached != null && (cached.name != null || cached.checkedAt.plus(UNRESOLVED_RETRY).isAfter(clock.instant()))) {
+            return cached.name
+        }
+        return when (val lookup = fetchLocation(path, accessToken)) {
+            is Lookup.Found -> lookup.name.also { locationNames?.save(id, it, clock.instant()) }
+            // Refusals (no access, unknown id) are remembered so they are not retried on every refresh;
+            // server errors and network failures say nothing about the location, so they are not.
+            Lookup.Refused -> null.also { locationNames?.save(id, null, clock.instant()) }
+            Lookup.Unavailable -> null
+        }
     }
 
-    private suspend fun HttpResponse.locationName(): String? {
-        val body = bodyAsText()
-        return if (status.isSuccess()) json.decodeFromString<EsiLocation>(body).name else null
+    private suspend fun fetchLocation(path: String, accessToken: String?): Lookup = try {
+        val response = http.get(url(path)) {
+            if (accessToken != null) bearerAuth(accessToken)
+        }
+        val body = response.bodyAsText()
+        when {
+            response.status.isSuccess() -> Lookup.Found(json.decodeFromString<EsiLocation>(body).name)
+            response.status == HttpStatusCode.Forbidden || response.status == HttpStatusCode.NotFound -> Lookup.Refused
+            else -> Lookup.Unavailable
+        }
+    } catch (_: IOException) {
+        Lookup.Unavailable
+    }
+
+    private sealed interface Lookup {
+        data class Found(val name: String) : Lookup
+        data object Refused : Lookup
+        data object Unavailable : Lookup
     }
 
     private fun url(path: String) = baseUrl + path
@@ -102,5 +127,6 @@ internal class EsiNames(
         const val LOOKUP_BATCH_SIZE = 1000
         const val MAX_TYPE_LOOKUPS_PER_BATCH = 8
         const val STRUCTURE_ID_MIN = 1_000_000_000_000L
+        val UNRESOLVED_RETRY: Duration = Duration.ofDays(1)
     }
 }

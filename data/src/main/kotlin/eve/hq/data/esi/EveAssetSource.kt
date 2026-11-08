@@ -9,6 +9,7 @@ import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
 import eve.hq.core.asset.CachedAssetPage
 import eve.hq.core.character.EveCharacter
+import eve.hq.data.LocationNameCache
 import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
@@ -37,10 +38,11 @@ class EveAssetSource(
     staticTypeNames: StaticTypeNameRepository? = null,
     private val assetCache: AssetCache? = null,
     private val clock: Clock = Clock.systemUTC(),
+    locationNames: LocationNameCache? = null,
 ) : AssetSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
-    private val names = EsiNames(http, baseUrl, staticTypeNames)
+    private val names = EsiNames(http, baseUrl, staticTypeNames, locationNames, clock)
 
     override fun cachedSnapshot(characterId: Long) = assetCache?.findSnapshot(characterId)
 

@@ -19,6 +19,7 @@ import eve.hq.data.FileDatabase
 import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
+import eve.hq.data.JooqLocationNameCache
 import eve.hq.data.StaticBlueprintRepository
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
@@ -51,6 +52,7 @@ object AppServices {
         val database = FileDatabase.open(dataDir, clock)
         val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
         val assetCache = JooqAssetCacheRepository(database.dataSource)
+        val locationNames = JooqLocationNameCache(database.dataSource)
         val staticBlueprints = StaticBlueprintRepository(database.dataSource)
         val jobPageCache = JooqJobPageCache(database.dataSource)
         val staticTypeNames = StaticTypeNameRepository(database.dataSource)
@@ -72,7 +74,7 @@ object AppServices {
                 repository,
                 refreshToken.value,
                 clock,
-                EveAssetSource(http.value, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock),
+                EveAssetSource(http.value, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock, locationNames = locationNames),
             )
             AssetsViewModel(listCharacters, ListAssets(source), scope, Dispatchers.IO)
         }
@@ -81,7 +83,7 @@ object AppServices {
                 repository,
                 refreshToken.value,
                 clock,
-                EveJobSource(http.value, staticTypeNames = staticTypeNames, pageCache = jobPageCache, clock = clock),
+                EveJobSource(http.value, staticTypeNames = staticTypeNames, pageCache = jobPageCache, clock = clock, locationNames = locationNames),
             )
         }
         val jobs = lazy {
@@ -92,7 +94,13 @@ object AppServices {
                 repository,
                 refreshToken.value,
                 clock,
-                EveBlueprintSource(http.value, staticTypeNames = staticTypeNames, staticBlueprints = staticBlueprints),
+                EveBlueprintSource(
+                    http.value,
+                    staticTypeNames = staticTypeNames,
+                    staticBlueprints = staticBlueprints,
+                    locationNames = locationNames,
+                    clock = clock,
+                ),
             )
             BlueprintsViewModel(listCharacters, ListBlueprints(source, jobSource.value), clock, scope, Dispatchers.IO)
         }

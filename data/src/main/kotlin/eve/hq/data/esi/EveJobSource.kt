@@ -9,6 +9,7 @@ import eve.hq.core.industry.JobItem
 import eve.hq.core.industry.JobPageCache
 import eve.hq.core.industry.JobSource
 import eve.hq.core.industry.JobStatus
+import eve.hq.data.LocationNameCache
 import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
@@ -29,10 +30,11 @@ class EveJobSource(
     staticTypeNames: StaticTypeNameRepository? = null,
     private val pageCache: JobPageCache? = null,
     private val clock: Clock = Clock.systemUTC(),
+    locationNames: LocationNameCache? = null,
 ) : JobSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
-    private val names = EsiNames(http, baseUrl, staticTypeNames)
+    private val names = EsiNames(http, baseUrl, staticTypeNames, locationNames, clock)
 
     override suspend fun load(character: EveCharacter): List<IndustryJob> {
         val jobs = json.decodeFromString<List<EsiJob>>(loadPage(character))

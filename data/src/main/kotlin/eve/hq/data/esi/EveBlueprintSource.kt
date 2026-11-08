@@ -6,6 +6,7 @@ import eve.hq.core.blueprint.BlueprintKind
 import eve.hq.core.blueprint.BlueprintSource
 import eve.hq.core.blueprint.OwnedBlueprint
 import eve.hq.core.character.EveCharacter
+import eve.hq.data.LocationNameCache
 import eve.hq.data.StaticBlueprintRepository
 import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
@@ -15,16 +16,19 @@ import io.ktor.client.request.parameter
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.time.Clock
 
 class EveBlueprintSource(
     private val http: HttpClient,
     baseUrl: String = "https://esi.evetech.net/latest/",
     staticTypeNames: StaticTypeNameRepository? = null,
     private val staticBlueprints: StaticBlueprintRepository? = null,
+    locationNames: LocationNameCache? = null,
+    clock: Clock = Clock.systemUTC(),
 ) : BlueprintSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
-    private val names = EsiNames(http, baseUrl, staticTypeNames)
+    private val names = EsiNames(http, baseUrl, staticTypeNames, locationNames, clock)
 
     override suspend fun load(character: EveCharacter): List<OwnedBlueprint> {
         val blueprints = loadPages(character)
