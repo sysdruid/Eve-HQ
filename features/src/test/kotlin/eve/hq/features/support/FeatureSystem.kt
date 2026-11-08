@@ -13,13 +13,18 @@ import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
 import eve.hq.core.character.SsoAuthenticator
 import eve.hq.core.character.TokenRefresher
+import eve.hq.core.industry.JobListing
+import eve.hq.core.industry.ListJobs
+import eve.hq.core.industry.RefreshingJobSource
 import eve.hq.data.EsiMock
 import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
+import eve.hq.data.JooqJobPageCache
 import eve.hq.data.Migrations
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
 import eve.hq.data.esi.EveAssetSource
+import eve.hq.data.esi.EveJobSource
 import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
 import java.security.SecureRandom
@@ -49,12 +54,17 @@ class FeatureSystem {
     val now: Instant = Instant.parse("2026-11-08T12:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private var assets = newAssetList()
+    private var jobs = newJobList()
 
     fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
 
     fun listCharacters(): List<EveCharacter> = ListCharacters(repository)()
     suspend fun listAssets(): AssetListing = assets(listCharacters())
     fun cachedAssets(): AssetListing = assets.cached(listCharacters())
+    suspend fun listJobs(): JobListing = jobs(listCharacters())
+    fun reopenJobServices() {
+        jobs = newJobList()
+    }
     fun reopenAssetServices() {
         assets = newAssetList()
     }
@@ -62,6 +72,23 @@ class FeatureSystem {
     fun markInvalid(id: Long, reason: String) = MarkCharacterInvalid(repository)(id, reason)
     fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
     suspend fun refreshToken(id: Long) = RefreshCharacterToken(repository, refresher)(id)
+
+    private fun newJobList(): ListJobs {
+        val source = EveJobSource(
+            http = esi.client,
+            baseUrl = esi.baseUrl,
+            staticTypeNames = StaticTypeNameRepository(dataSource),
+            pageCache = JooqJobPageCache(dataSource),
+            clock = clock,
+        )
+        val refreshingSource = RefreshingJobSource(
+            repository,
+            RefreshCharacterToken(repository, refresher),
+            clock,
+            source,
+        )
+        return ListJobs(refreshingSource, clock)
+    }
 
     private fun newAssetList(): ListAssets {
         val source = EveAssetSource(

@@ -6,7 +6,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
-enum class IndustryActivity { Manufacturing, TimeEfficiency, MaterialEfficiency, Copying, Invention, Reaction }
+enum class IndustryActivity { Manufacturing, TimeEfficiency, MaterialEfficiency, Copying, Invention, ReverseEngineering, Reaction }
 
 /** ESI's own job status; whether an active job is actually finished is derived from the clock. */
 enum class JobStatus { Active, Paused, Ready, Delivered, Cancelled, Reverted }
@@ -83,4 +83,12 @@ class ListJobs(private val source: JobSource, private val clock: Clock) {
         status = status,
         facilityName = facility.name ?: "Location ${facility.id}",
     )
+}
+
+data class CachedJobPage(val body: String, val etag: String?, val expiresAt: Instant?)
+
+interface JobPageCache {
+    fun find(characterId: Long): CachedJobPage?
+
+    fun save(characterId: Long, page: CachedJobPage)
 }

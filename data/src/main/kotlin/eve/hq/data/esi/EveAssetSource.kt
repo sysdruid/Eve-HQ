@@ -30,8 +30,6 @@ import kotlinx.serialization.json.Json
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 class EveAssetSource(
     private val http: HttpClient,
@@ -120,10 +118,6 @@ class EveAssetSource(
 
     private fun HttpResponse.pageCount() = headers["X-Pages"]?.toIntOrNull()?.takeIf { it > 0 }
 
-    private fun HttpResponse.expiresAt(): Instant? = headers[HttpHeaders.Expires]?.let { value ->
-        runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }.getOrNull()
-    }
-
     private suspend fun loadItemNames(character: EveCharacter, itemIds: List<Long>): Map<Long, String> =
         itemIds.distinct().chunked(LOOKUP_BATCH_SIZE).flatMap { ids ->
             try {
@@ -185,6 +179,3 @@ class EveAssetSource(
         private const val STRUCTURE_ID_MIN = 1_000_000_000_000L
     }
 }
-
-private class EsiRequestFailed(endpoint: String, status: Int, body: String) :
-    Exception("ESI $endpoint answered $status: $body")
