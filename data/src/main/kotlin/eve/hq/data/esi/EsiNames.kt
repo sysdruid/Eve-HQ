@@ -35,6 +35,12 @@ internal class EsiNames(
         return loadTypeNames(ids.filterNot(staticNames::containsKey)) + staticNames
     }
 
+    /** What is known without the network: type names from the imported static data only. */
+    fun cachedTypeNames(typeIds: Collection<Long>): Map<Long, String> = staticTypeNames?.findNames(typeIds.distinct()).orEmpty()
+
+    /** A remembered station or structure name; null when it was never resolved. */
+    fun cachedLocationName(id: Long): String? = locationNames?.find(id)?.name
+
     /** For ids that may be either, such as a job facility or blueprint location: structure ids are far above station ids. */
     suspend fun stationOrStructureName(id: Long, accessToken: String): String? =
         if (id >= STRUCTURE_ID_MIN) structureName(id, accessToken) else stationName(id)

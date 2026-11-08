@@ -15,4 +15,6 @@ class RefreshingJobSource(
     private val freshCharacter = FreshCharacter(repository, refreshCharacterToken, clock)
 
     override suspend fun load(character: EveCharacter): List<IndustryJob> = delegate.load(freshCharacter(character))
+
+    override fun cached(character: EveCharacter) = delegate.cached(character)
 }

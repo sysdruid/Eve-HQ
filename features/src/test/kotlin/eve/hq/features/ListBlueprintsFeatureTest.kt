@@ -49,6 +49,21 @@ class ListBlueprintsFeatureTest {
         assertThat(system.esi.requests.count { it.path.endsWith("/characters/1/blueprints/") }).isEqualTo(1)
     }
 
+    @Test
+    fun `after a restart the last blueprints are listed from the database with their in-use marks and no ESI request`() =
+        runBlocking<Unit> {
+            system.given { characters().id(1).name("Alice").status("VALID").token_expires_at(system.now.plusSeconds(3600)) }
+            system.givenStaticTypes(681L to "Rifter Blueprint", 587L to "Rifter")
+            system.esi.aliceOwnsOneCopyAndOneOriginal(expires = "Sun, 08 Nov 2026 13:00:00 GMT")
+            val live = system.listBlueprints()
+            val requestsBefore = system.esi.requests.size
+
+            val cached = system.cachedBlueprints()
+
+            assertThat(cached.rows).containsExactlyElementsOf(live.rows)
+            assertThat(system.esi.requests).hasSize(requestsBefore)
+        }
+
     private fun EsiMock.aliceOwnsOneCopyAndOneOriginal(expires: String? = null) {
         characterBlueprints(1).willReturn(
             """[{"item_id":1001,"type_id":681,"location_id":60003760,"location_flag":"Hangar",

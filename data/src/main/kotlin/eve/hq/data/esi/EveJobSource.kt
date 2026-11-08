@@ -39,21 +39,32 @@ class EveJobSource(
     override suspend fun load(character: EveCharacter): List<IndustryJob> {
         val jobs = json.decodeFromString<List<EsiJob>>(loadPage(character))
         val typeNames = names.typeNames(jobs.flatMap { listOfNotNull(it.blueprintTypeId, it.productTypeId) })
-        return jobs.map { job ->
-            IndustryJob(
-                jobId = job.jobId,
-                activity = activity(job.activityId),
-                blueprintId = job.blueprintId,
-                blueprint = JobItem(job.blueprintTypeId, typeNames[job.blueprintTypeId]),
-                product = job.productTypeId?.let { JobItem(it, typeNames[it]) },
-                runs = job.runs,
-                startedAt = Instant.parse(job.startDate),
-                endsAt = Instant.parse(job.endDate),
-                status = status(job.status),
-                facility = JobFacility(job.facilityId, names.stationOrStructureName(job.facilityId, character.token.accessToken)),
-            )
+        val facilityNames = jobs.map(EsiJob::facilityId).distinct().associateWith { id ->
+            names.stationOrStructureName(id, character.token.accessToken)
         }
+        return jobs.map { it.toJob(typeNames, facilityNames) }
     }
+
+    override fun cached(character: EveCharacter): List<IndustryJob>? {
+        val page = pageCache?.find(character.id) ?: return null
+        val jobs = json.decodeFromString<List<EsiJob>>(page.body)
+        val typeNames = names.cachedTypeNames(jobs.flatMap { listOfNotNull(it.blueprintTypeId, it.productTypeId) })
+        val facilityNames = jobs.map(EsiJob::facilityId).distinct().associateWith(names::cachedLocationName)
+        return jobs.map { it.toJob(typeNames, facilityNames) }
+    }
+
+    private fun EsiJob.toJob(typeNames: Map<Long, String>, facilityNames: Map<Long, String?>) = IndustryJob(
+        jobId = jobId,
+        activity = activity(activityId),
+        blueprintId = blueprintId,
+        blueprint = JobItem(blueprintTypeId, typeNames[blueprintTypeId]),
+        product = productTypeId?.let { JobItem(it, typeNames[it]) },
+        runs = runs,
+        startedAt = Instant.parse(startDate),
+        endsAt = Instant.parse(endDate),
+        status = status(status),
+        facility = JobFacility(facilityId, facilityNames[facilityId]),
+    )
 
     private suspend fun loadPage(character: EveCharacter): String {
         val cached = pageCache?.find(character.id)

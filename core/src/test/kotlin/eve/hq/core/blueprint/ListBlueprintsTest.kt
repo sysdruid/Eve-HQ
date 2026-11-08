@@ -126,6 +126,34 @@ class ListBlueprintsTest {
         assertFailsWith<CancellationException> { runBlocking { ListBlueprints(source, noJobs)(listOf(alice)) } }
     }
 
+    @Test
+    fun `cached blueprints are listed with in-use marks from cached jobs, without loading anything`() {
+        val ends = Instant.parse("2026-11-08T14:00:00Z")
+        val source = object : BlueprintSource {
+            override suspend fun load(character: EveCharacter): List<OwnedBlueprint> = error("blueprints must not be loaded")
+            override fun cached(character: EveCharacter) = listOf(aBlueprint(1001), aBlueprint(1002))
+        }
+        val jobs = object : JobSource {
+            override suspend fun load(character: EveCharacter): List<IndustryJob> = error("jobs must not be loaded")
+            override fun cached(character: EveCharacter) = listOf(aJob(blueprintId = 1001, endsAt = ends))
+        }
+
+        val result = ListBlueprints(source, jobs).cached(listOf(alice))
+
+        assertThat(result.rows.associate { it.itemId to it.use?.endsAt }).containsExactlyInAnyOrderEntriesOf(
+            mapOf(1001L to ends, 1002L to null),
+        )
+    }
+
+    @Test
+    fun `characters without cached blueprints are left out of the cached list`() {
+        val source = object : BlueprintSource {
+            override suspend fun load(character: EveCharacter): List<OwnedBlueprint> = error("must not load")
+        }
+
+        assertThat(ListBlueprints(source, noJobs).cached(listOf(alice)).rows).isEmpty()
+    }
+
     private fun aJob(
         blueprintId: Long,
         activity: IndustryActivity = IndustryActivity.Manufacturing,

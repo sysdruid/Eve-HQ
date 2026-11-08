@@ -71,6 +71,19 @@ class FeatureSystem {
     fun cachedAssets(): AssetListing = assets.cached(listCharacters())
     suspend fun listJobs(): JobListing = jobs(listCharacters())
     suspend fun listBlueprints(): BlueprintListing = newBlueprintList()(listCharacters())
+    fun cachedJobs(): JobListing = newJobList().cached(listCharacters())
+    fun cachedBlueprints(): BlueprintListing = newBlueprintList().cached(listCharacters())
+
+    /** Type names the way an imported static-data archive provides them. */
+    fun givenStaticTypes(vararg names: Pair<Long, String>) = dataSource.connection.use { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeUpdate("merge into categories (id, name) key (id) values (1, 'Test')")
+            statement.executeUpdate("merge into groups (id, category_id, name) key (id) values (1, 1, 'Test')")
+            names.forEach { (id, name) ->
+                statement.executeUpdate("merge into types (id, group_id, name, published) key (id) values ($id, 1, '$name', true)")
+            }
+        }
+    }
     fun reopenJobServices() {
         jobs = newJobList()
     }

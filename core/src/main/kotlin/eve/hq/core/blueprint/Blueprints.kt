@@ -26,6 +26,9 @@ data class OwnedBlueprint(
 
 fun interface BlueprintSource {
     suspend fun load(character: EveCharacter): List<OwnedBlueprint>
+
+    /** The last blueprints saved for the character, or null when there are none; never touches the network. */
+    fun cached(character: EveCharacter): List<OwnedBlueprint>? = null
 }
 
 data class BlueprintUse(val activity: IndustryActivity, val endsAt: Instant)
@@ -49,9 +52,16 @@ data class BlueprintListing(val rows: List<BlueprintRow>, val failures: List<Blu
 class ListBlueprints(private val blueprints: BlueprintSource, private val jobs: JobSource) {
     suspend operator fun invoke(characters: List<EveCharacter>): BlueprintListing {
         val results = characters.map { character -> loadCharacter(character) }
-        val rows = results.flatMap(CharacterBlueprints::rows)
-            .sortedWith(compareBy<BlueprintRow> { it.characterName.lowercase() }.thenBy { it.blueprintName.lowercase() })
+        val rows = results.flatMap(CharacterBlueprints::rows).sortedWith(ROW_ORDER)
         return BlueprintListing(rows, results.flatMap(CharacterBlueprints::failures))
+    }
+
+    fun cached(characters: List<EveCharacter>): BlueprintListing {
+        val rows = characters.flatMap { character ->
+            val owned = blueprints.cached(character) ?: return@flatMap emptyList()
+            rowsFor(character, owned, jobs.cached(character).orEmpty())
+        }.sortedWith(ROW_ORDER)
+        return BlueprintListing(rows, emptyList())
     }
 
     private suspend fun loadCharacter(character: EveCharacter): CharacterBlueprints {
@@ -59,17 +69,25 @@ class ListBlueprints(private val blueprints: BlueprintSource, private val jobs: 
             return CharacterBlueprints(failures = listOf(failure(character, error.message ?: "Unable to load blueprints")))
         }
         val running = attempt { jobs.load(character) }
-        val inUse = running.getOrDefault(emptyList()).filter { it.status.ongoing }.associateBy { it.blueprintId }
         val warning = running.exceptionOrNull()?.let {
             failure(character, "In-use marks are unavailable: ${it.message ?: "unable to load jobs"}")
         }
         return CharacterBlueprints(
-            rows = owned.map { it.toRow(character, inUse[it.itemId]) },
+            rows = rowsFor(character, owned, running.getOrDefault(emptyList())),
             failures = listOfNotNull(warning),
         )
     }
 
+    private fun rowsFor(character: EveCharacter, owned: List<OwnedBlueprint>, running: List<IndustryJob>): List<BlueprintRow> {
+        val inUse = running.filter { it.status.ongoing }.associateBy { it.blueprintId }
+        return owned.map { it.toRow(character, inUse[it.itemId]) }
+    }
+
     private fun failure(character: EveCharacter, message: String) = BlueprintLoadFailure(character.id, character.name, message)
+
+    private companion object {
+        val ROW_ORDER = compareBy<BlueprintRow> { it.characterName.lowercase() }.thenBy { it.blueprintName.lowercase() }
+    }
 
     private data class CharacterBlueprints(
         val rows: List<BlueprintRow> = emptyList(),

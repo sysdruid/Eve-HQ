@@ -159,6 +159,21 @@ class ListJobsTest {
     }
 
     @Test
+    fun `cached jobs are listed without loading, skipping characters that have no saved jobs`() {
+        val bob = EveCharacter(2, "Bob", AuthToken("access", "refresh", Instant.MAX))
+        val source = object : JobSource {
+            override suspend fun load(character: EveCharacter): List<IndustryJob> = error("jobs must not be loaded")
+            override fun cached(character: EveCharacter) =
+                if (character.id == alice.id) listOf(aJob(productName = "Rifter"), aJob(status = JobStatus.Delivered)) else null
+        }
+
+        val result = ListJobs(source, clock).cached(listOf(alice, bob))
+
+        assertThat(result.rows.map { it.characterName to it.itemName }).containsExactly("Alice" to "Rifter")
+        assertThat(result.failures).isEmpty()
+    }
+
+    @Test
     fun `cancelling the load is not reported as a character failure`() {
         val source = JobSource { throw CancellationException("cancelled") }
 

@@ -38,25 +38,41 @@ class EveBlueprintSource(
 
     override suspend fun load(character: EveCharacter): List<OwnedBlueprint> {
         val blueprints = loadPages(character)
-        val typeIds = blueprints.map(EsiBlueprint::typeId)
-        val typeNames = names.typeNames(typeIds)
-        val maxRuns = staticBlueprints?.findMaxRuns(typeIds).orEmpty()
+        val typeNames = names.typeNames(blueprints.map(EsiBlueprint::typeId))
         val locationNames = blueprints.map(EsiBlueprint::locationId).distinct().associateWith { id ->
             names.stationOrStructureName(id, character.token.accessToken)
         }
-        return blueprints.map { blueprint ->
-            OwnedBlueprint(
-                itemId = blueprint.itemId,
-                type = AssetType(blueprint.typeId, typeNames[blueprint.typeId]),
-                kind = if (blueprint.quantity == COPY) BlueprintKind.Copy else BlueprintKind.Original,
-                materialEfficiency = blueprint.materialEfficiency,
-                timeEfficiency = blueprint.timeEfficiency,
-                remainingRuns = blueprint.runs.takeIf { blueprint.quantity == COPY },
-                maxRuns = maxRuns[blueprint.typeId],
-                location = AssetLocation(blueprint.locationId, locationNames[blueprint.locationId]),
-            )
-        }
+        val maxRuns = maxRunsOf(blueprints)
+        return blueprints.map { it.toOwned(typeNames, maxRuns, locationNames) }
     }
+
+    override fun cached(character: EveCharacter): List<OwnedBlueprint>? {
+        val first = pageCache?.findPage(character.id, 1) ?: return null
+        val pages = (1..first.pageCount).map { pageCache.findPage(character.id, it) ?: return null }
+        val blueprints = pages.flatMap { json.decodeFromString<List<EsiBlueprint>>(it.body) }
+        val typeNames = names.cachedTypeNames(blueprints.map(EsiBlueprint::typeId))
+        val locationNames = blueprints.map(EsiBlueprint::locationId).distinct().associateWith(names::cachedLocationName)
+        val maxRuns = maxRunsOf(blueprints)
+        return blueprints.map { it.toOwned(typeNames, maxRuns, locationNames) }
+    }
+
+    private fun maxRunsOf(blueprints: List<EsiBlueprint>) =
+        staticBlueprints?.findMaxRuns(blueprints.map(EsiBlueprint::typeId)).orEmpty()
+
+    private fun EsiBlueprint.toOwned(
+        typeNames: Map<Long, String>,
+        maxRuns: Map<Long, Int>,
+        locationNames: Map<Long, String?>,
+    ) = OwnedBlueprint(
+        itemId = itemId,
+        type = AssetType(typeId, typeNames[typeId]),
+        kind = if (quantity == COPY) BlueprintKind.Copy else BlueprintKind.Original,
+        materialEfficiency = materialEfficiency,
+        timeEfficiency = timeEfficiency,
+        remainingRuns = runs.takeIf { quantity == COPY },
+        maxRuns = maxRuns[typeId],
+        location = AssetLocation(locationId, locationNames[locationId]),
+    )
 
     private suspend fun loadPages(character: EveCharacter): List<EsiBlueprint> {
         val pages = mutableListOf<CachedBlueprintPage>()

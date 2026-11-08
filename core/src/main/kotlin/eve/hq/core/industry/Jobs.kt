@@ -33,6 +33,9 @@ data class IndustryJob(
 
 fun interface JobSource {
     suspend fun load(character: EveCharacter): List<IndustryJob>
+
+    /** The last jobs saved for the character, or null when there are none; never touches the network. */
+    fun cached(character: EveCharacter): List<IndustryJob>? = null
 }
 
 data class JobRow(
@@ -65,15 +68,24 @@ data class JobListing(val rows: List<JobRow>, val failures: List<JobLoadFailure>
 
 class ListJobs(private val source: JobSource, private val clock: Clock) {
     suspend operator fun invoke(characters: List<EveCharacter>): JobListing {
-        val now = clock.instant()
         val results = characters.map { character -> character to attempt { source.load(character) } }
-        val rows = results.flatMap { (character, result) ->
-            result.getOrDefault(emptyList()).filter { it.status.ongoing }.map { it.toRow(character) }
-        }.sortedWith(compareBy<JobRow> { !it.isReady(now) }.thenBy { it.endsAt })
+        val rows = sortedRows(results.map { (character, result) -> character to result.getOrDefault(emptyList()) })
         val failures = results.mapNotNull { (character, result) ->
             result.exceptionOrNull()?.let { JobLoadFailure(character.id, character.name, it.message ?: "Unable to load jobs") }
         }
         return JobListing(rows, failures)
+    }
+
+    fun cached(characters: List<EveCharacter>): JobListing {
+        val saved = characters.mapNotNull { character -> source.cached(character)?.let { character to it } }
+        return JobListing(sortedRows(saved), emptyList())
+    }
+
+    private fun sortedRows(jobsByCharacter: List<Pair<EveCharacter, List<IndustryJob>>>): List<JobRow> {
+        val now = clock.instant()
+        return jobsByCharacter.flatMap { (character, jobs) ->
+            jobs.filter { it.status.ongoing }.map { it.toRow(character) }
+        }.sortedWith(compareBy<JobRow> { !it.isReady(now) }.thenBy { it.endsAt })
     }
 
     private fun IndustryJob.toRow(character: EveCharacter) = JobRow(

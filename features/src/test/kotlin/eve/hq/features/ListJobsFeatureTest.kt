@@ -78,6 +78,28 @@ class ListJobsFeatureTest {
         assertThat(system.esi.requests.count { it.path.endsWith("/universe/stations/60003760/") }).isEqualTo(1)
     }
 
+    @Test
+    fun `after a restart the last jobs are listed from the database with no ESI request`() = runBlocking<Unit> {
+        system.given { characters().id(1).name("Alice").status("VALID").token_expires_at(system.now.plusSeconds(3600)) }
+        system.givenStaticTypes(787L to "Rifter Blueprint", 587L to "Rifter")
+        system.esi.aliceHasOneManufacturingJob()
+        val live = system.listJobs()
+        val requestsBefore = system.esi.requests.size
+
+        system.reopenJobServices()
+        val cached = system.cachedJobs()
+
+        assertThat(cached.rows).containsExactlyElementsOf(live.rows)
+        assertThat(system.esi.requests).hasSize(requestsBefore)
+    }
+
+    @Test
+    fun `a character without saved jobs has nothing in the cached list`() {
+        system.given { characters().id(1).name("Alice").status("VALID") }
+
+        assertThat(system.cachedJobs().rows).isEmpty()
+    }
+
     private fun EsiMock.aliceHasOneManufacturingJob(expires: String? = null) {
         characterIndustryJobs(1).willReturn(
             """[{"job_id":9001,"activity_id":1,"blueprint_id":555,"blueprint_type_id":787,"product_type_id":587,
