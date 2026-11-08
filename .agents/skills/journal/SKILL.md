@@ -1,10 +1,8 @@
-# Skill: Automatic Sprint Journaling
-
-## Purpose
-Capture technical decisions and friction immediately upon feature completion to generate raw material for engineering articles.
-
-## Execution Trigger
-Fired automatically when a feature, bugfix, or architectural spike is marked complete.
+---
+name: journal
+description: Automatic Sprint Journaling.  Capture technical decisions and friction immediately upon feature completion to generate raw material for engineering articles.  
+trigger: Fired automatically when a feature, bugfix, or architectural spike is marked complete.
+---
 
 ## Instructions
 1. Inspect the active conversation context for the feature just implemented.

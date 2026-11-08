@@ -1,9 +1,10 @@
 package eve.hq.data.esi
 
 import eve.hq.core.asset.AssetAccessDenied
-import eve.hq.core.asset.AssetInventory
 import eve.hq.core.asset.AssetItem
+import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetSource
+import eve.hq.core.asset.AssetType
 import eve.hq.core.character.EveCharacter
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
@@ -29,19 +30,24 @@ class EveAssetSource(
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
 
-    override suspend fun load(character: EveCharacter): AssetInventory {
+    override suspend fun load(character: EveCharacter): List<AssetItem> {
         val assets = loadPages(character)
         val typeNames = loadTypeNames(assets.map(EsiAsset::typeId).distinct())
         val itemNames = loadItemNames(character, assets.map(EsiAsset::itemId))
         val locationNames = loadLocationNames(character, assets)
-        return AssetInventory(
-            items = assets.map { asset ->
-                AssetItem(asset.itemId, asset.typeId, asset.quantity, asset.locationId)
-            },
-            typeNames = typeNames,
-            locationNames = locationNames,
-            itemNames = itemNames,
-        )
+        val itemIds = assets.mapTo(mutableSetOf(), EsiAsset::itemId)
+        return assets.map { asset ->
+            AssetItem(
+                itemId = asset.itemId,
+                type = AssetType(asset.typeId, typeNames[asset.typeId]),
+                customName = itemNames[asset.itemId],
+                quantity = asset.quantity,
+                location = AssetLocation(
+                    asset.locationId,
+                    if (asset.locationId in itemIds) null else locationNames[asset.locationId],
+                ),
+            )
+        }
     }
 
     private suspend fun loadPages(character: EveCharacter): List<EsiAsset> {
@@ -86,6 +92,7 @@ class EveAssetSource(
                         pending.addLast(batch.take(middle))
                         pending.addLast(batch.drop(middle))
                     }
+
                     response.status.isSuccess() -> names += json.decodeFromString<List<EsiName>>(body)
                 }
             } catch (_: IOException) {

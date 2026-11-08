@@ -2,11 +2,13 @@ package eve.hq.core.asset
 
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class ListAssetsTest {
     @Test
@@ -22,13 +24,9 @@ class ListAssetsTest {
     fun `an asset row includes the character station container type and quantity`() = runBlocking {
         val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
         val source = AssetSource {
-            AssetInventory(
-                items = listOf(
-                    AssetItem(itemId = 700, typeId = 100, quantity = 1, locationId = 600),
-                    AssetItem(itemId = 701, typeId = 34, quantity = 42, locationId = 700),
-                ),
-                typeNames = mapOf(100L to "Small Secure Container", 34L to "Tritanium"),
-                locationNames = mapOf(600L to "Jita IV - Moon 4 - Caldari Navy Assembly Plant"),
+            listOf(
+                assetItem(700, 100, "Small Secure Container", 1, 600, "Jita IV - Moon 4 - Caldari Navy Assembly Plant"),
+                assetItem(701, 34, "Tritanium", 42, 700),
             )
         }
 
@@ -62,14 +60,10 @@ class ListAssetsTest {
     fun `nested containers are listed from the station inward`() = runBlocking {
         val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
         val source = AssetSource {
-            AssetInventory(
-                items = listOf(
-                    AssetItem(itemId = 700, typeId = 100, quantity = 1, locationId = 600),
-                    AssetItem(itemId = 701, typeId = 200, quantity = 1, locationId = 700),
-                    AssetItem(itemId = 702, typeId = 300, quantity = 12, locationId = 701),
-                ),
-                typeNames = mapOf(100L to "Large Container", 200L to "Small Container", 300L to "Tritanium"),
-                locationNames = mapOf(600L to "Jita Station"),
+            listOf(
+                assetItem(700, 100, "Large Container", 1, 600, "Jita Station"),
+                assetItem(701, 200, "Small Container", 1, 700),
+                assetItem(702, 300, "Tritanium", 12, 701),
             )
         }
 
@@ -82,13 +76,9 @@ class ListAssetsTest {
     fun `cyclic container parents terminate and leave assets visible`() = runBlocking {
         val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
         val source = AssetSource {
-            AssetInventory(
-                items = listOf(
-                    AssetItem(itemId = 700, typeId = 100, quantity = 1, locationId = 701),
-                    AssetItem(itemId = 701, typeId = 200, quantity = 1, locationId = 700),
-                ),
-                typeNames = mapOf(100L to "Container A", 200L to "Container B"),
-                locationNames = emptyMap(),
+            listOf(
+                assetItem(700, 100, "Container A", 1, 701),
+                assetItem(701, 200, "Container B", 1, 700),
             )
         }
 
@@ -102,13 +92,9 @@ class ListAssetsTest {
     fun `missing stations and parent containers use location ids without hiding assets`() = runBlocking {
         val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
         val source = AssetSource {
-            AssetInventory(
-                items = listOf(
-                    AssetItem(itemId = 700, typeId = 100, quantity = 1, locationId = 600),
-                    AssetItem(itemId = 701, typeId = 200, quantity = 4, locationId = 500),
-                ),
-                typeNames = mapOf(100L to "Container", 200L to "Tritanium"),
-                locationNames = emptyMap(),
+            listOf(
+                assetItem(700, 100, "Container", 1, 600),
+                assetItem(701, 200, "Tritanium", 4, 500),
             )
         }
 
@@ -123,13 +109,9 @@ class ListAssetsTest {
     fun `search matches item and station substrings without case sensitivity`() = runBlocking {
         val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
         val source = AssetSource {
-            AssetInventory(
-                items = listOf(
-                    AssetItem(itemId = 700, typeId = 100, quantity = 1, locationId = 600),
-                    AssetItem(itemId = 701, typeId = 34, quantity = 42, locationId = 700),
-                ),
-                typeNames = mapOf(100L to "Container", 34L to "Tritanium"),
-                locationNames = mapOf(600L to "Jita Station"),
+            listOf(
+                assetItem(700, 100, "Container", 1, 600, "Jita Station"),
+                assetItem(701, 34, "Tritanium", 42, 700),
             )
         }
 
@@ -145,11 +127,7 @@ class ListAssetsTest {
         val alice = EveCharacter(1, "Alice", AuthToken("alice", "refresh", Instant.MAX))
         val bob = EveCharacter(2, "Bob", AuthToken("bob", "refresh", Instant.MAX))
         val source = AssetSource { character ->
-            AssetInventory(
-                items = listOf(AssetItem(itemId = character.id, typeId = 34, quantity = 1, locationId = 600)),
-                typeNames = mapOf(34L to "Tritanium"),
-                locationNames = mapOf(600L to "Jita Station"),
-            )
+            listOf(assetItem(character.id, 34, "Tritanium", 1, 600, "Jita Station"))
         }
 
         val result = ListAssets(source)(listOf(bob, alice))
@@ -163,11 +141,7 @@ class ListAssetsTest {
         val bob = EveCharacter(2, "Bob", AuthToken("bob", "refresh", Instant.MAX))
         val source = AssetSource { character ->
             if (character.id == alice.id) throw IOException("ESI unavailable")
-            AssetInventory(
-                items = listOf(AssetItem(itemId = 702, typeId = 34, quantity = 5, locationId = 600)),
-                typeNames = mapOf(34L to "Tritanium"),
-                locationNames = mapOf(600L to "Jita Station"),
-            )
+            listOf(assetItem(702, 34, "Tritanium", 5, 600, "Jita Station"))
         }
 
         val result = ListAssets(source)(listOf(alice, bob))
@@ -175,4 +149,57 @@ class ListAssetsTest {
         assertEquals(listOf("Bob"), result.items.map { it.characterName })
         assertEquals(listOf(AssetLoadFailure(1, "Alice", "ESI unavailable")), result.failures)
     }
+
+    @Test
+    fun `cancellation while loading a character is propagated`() = runBlocking<Unit> {
+        val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
+        val source = AssetSource { throw CancellationException("cancelled") }
+
+        assertFailsWith<CancellationException> {
+            ListAssets(source)(listOf(character))
+        }
+    }
+
+    @Test
+    fun `a failure without a message uses the default message`() = runBlocking {
+        val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
+        val source = AssetSource { throw IOException() }
+
+        val result = ListAssets(source)(listOf(character))
+
+        assertEquals(listOf(AssetLoadFailure(1, "Alice", "Unable to load assets")), result.failures)
+    }
+
+    @Test
+    fun `custom container names and unknown types use their respective labels`() = runBlocking {
+        val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
+        val source = AssetSource {
+            listOf(
+                assetItem(700, 100, null, 1, 600, "Jita Station", customName = "Hangar Box"),
+                assetItem(701, 999, null, 3, 700),
+            )
+        }
+
+        val result = ListAssets(source)(listOf(character))
+
+        assertEquals("Hangar Box", result.items.single { it.quantity == 3 }.containerPath)
+        assertEquals("Unknown type (999)", result.items.single { it.quantity == 3 }.typeName)
+        assertEquals("Unknown type (100)", result.items.single { it.quantity == 1 }.typeName)
+    }
+
+    private fun assetItem(
+        itemId: Long,
+        typeId: Long,
+        typeName: String?,
+        quantity: Int,
+        locationId: Long,
+        locationName: String? = null,
+        customName: String? = null,
+    ) = AssetItem(
+        itemId,
+        AssetType(typeId, typeName),
+        customName,
+        quantity,
+        AssetLocation(locationId, locationName),
+    )
 }

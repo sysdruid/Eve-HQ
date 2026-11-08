@@ -1,9 +1,10 @@
 package eve.hq.app.assets
 
 import eve.hq.app.characters.AppSystem
-import eve.hq.core.asset.AssetInventory
 import eve.hq.core.asset.AssetItem
+import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetSource
+import eve.hq.core.asset.AssetType
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.character.ListCharacters
 import kotlinx.coroutines.CompletableDeferred
@@ -24,7 +25,7 @@ class AssetsViewModelTest {
     @Test
     fun `loading is visible until the inventory arrives`() {
         system.store(1, "Alice")
-        val pending = CompletableDeferred<AssetInventory>()
+        val pending = CompletableDeferred<List<AssetItem>>()
         val viewModel = AssetsViewModel(
             ListCharacters(system.repository),
             ListAssets { pending.await() },
@@ -34,11 +35,7 @@ class AssetsViewModelTest {
 
         assertTrue(viewModel.state.value.loading)
         pending.complete(
-            AssetInventory(
-                listOf(AssetItem(101, 34, 42, 600)),
-                mapOf(34L to "Tritanium"),
-                mapOf(600L to "Jita"),
-            ),
+            listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita"))),
         )
 
         assertFalse(viewModel.state.value.loading)
@@ -49,11 +46,7 @@ class AssetsViewModelTest {
     fun `refresh loads assets for the current character list`() {
         system.store(1, "Alice")
         val source = AssetSource { character ->
-            AssetInventory(
-                listOf(AssetItem(character.id + 100, 34, 1, 600)),
-                mapOf(34L to "Tritanium"),
-                mapOf(600L to "Jita"),
-            )
+            listOf(AssetItem(character.id + 100, AssetType(34, "Tritanium"), null, 1, AssetLocation(600, "Jita")))
         }
         val viewModel = AssetsViewModel(ListCharacters(system.repository), ListAssets(source), scope, dispatcher)
         assertEquals(listOf("Alice"), viewModel.state.value.items.map { it.characterName })
@@ -70,10 +63,9 @@ class AssetsViewModelTest {
         var loads = 0
         val source = AssetSource {
             loads++
-            AssetInventory(
-                listOf(AssetItem(101, 34, 42, 600), AssetItem(102, 35, 3, 600)),
-                mapOf(34L to "Tritanium", 35L to "Pyerite"),
-                mapOf(600L to "Jita"),
+            listOf(
+                AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita")),
+                AssetItem(102, AssetType(35, "Pyerite"), null, 3, AssetLocation(600, "Jita")),
             )
         }
         val viewModel = AssetsViewModel(ListCharacters(system.repository), ListAssets(source), scope, dispatcher)
@@ -92,11 +84,7 @@ class AssetsViewModelTest {
         system.store(2, "Bob")
         val source = AssetSource { character ->
             if (character.name == "Alice") error("Please log in again")
-            AssetInventory(
-                listOf(AssetItem(102, 34, 3, 600)),
-                mapOf(34L to "Tritanium"),
-                mapOf(600L to "Jita"),
-            )
+            listOf(AssetItem(102, AssetType(34, "Tritanium"), null, 3, AssetLocation(600, "Jita")))
         }
 
         val viewModel = AssetsViewModel(ListCharacters(system.repository), ListAssets(source), scope, dispatcher)

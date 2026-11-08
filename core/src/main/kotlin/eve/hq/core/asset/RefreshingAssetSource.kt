@@ -12,7 +12,7 @@ class RefreshingAssetSource(
     private val clock: Clock,
     private val delegate: AssetSource,
 ) : AssetSource {
-    override suspend fun load(character: EveCharacter): AssetInventory {
+    override suspend fun load(character: EveCharacter): List<AssetItem> {
         var current = repository.find(character.id) ?: error("Character ${character.name} no longer exists")
         if (current.status is CharacterStatus.Invalid) throw needsLogin()
         if (!current.token.expiresAt.isAfter(clock.instant())) {
@@ -23,5 +23,6 @@ class RefreshingAssetSource(
         return delegate.load(current)
     }
 
-    private fun needsLogin() = AssetAccessDenied("EVE authorization is no longer valid. Please use Add character to log in again.")
+    private fun needsLogin() =
+        AssetAccessDenied("EVE authorization is no longer valid. Please use Add character to log in again.")
 }

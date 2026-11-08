@@ -3,22 +3,20 @@ package eve.hq.core.asset
 import eve.hq.core.character.EveCharacter
 import kotlinx.coroutines.CancellationException
 
+data class AssetType(val id: Long, val name: String?)
+
+data class AssetLocation(val id: Long, val name: String?)
+
 data class AssetItem(
     val itemId: Long,
-    val typeId: Long,
+    val type: AssetType,
+    val customName: String?,
     val quantity: Int,
-    val locationId: Long,
-)
-
-data class AssetInventory(
-    val items: List<AssetItem>,
-    val typeNames: Map<Long, String>,
-    val locationNames: Map<Long, String>,
-    val itemNames: Map<Long, String> = emptyMap(),
+    val location: AssetLocation,
 )
 
 fun interface AssetSource {
-    suspend fun load(character: EveCharacter): AssetInventory
+    suspend fun load(character: EveCharacter): List<AssetItem>
 }
 
 data class AssetRow(
@@ -37,38 +35,9 @@ data class AssetListing(val items: List<AssetRow>, val failures: List<AssetLoadF
 
 class ListAssets(private val source: AssetSource) {
     suspend operator fun invoke(characters: List<EveCharacter>, query: String = ""): AssetListing {
-        val rows = mutableListOf<AssetRow>()
-        val failures = mutableListOf<AssetLoadFailure>()
-        for (character in characters) {
-            val inventory = try {
-                source.load(character)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                failures += AssetLoadFailure(character.id, character.name, e.message ?: "Unable to load assets")
-                continue
-            }
-            val assetsById = inventory.items.associateBy(AssetItem::itemId)
-            inventory.items.forEach { item ->
-                val containers = mutableListOf<String>()
-                val visited = mutableSetOf(item.itemId)
-                var locationId = item.locationId
-                while (true) {
-                    val parent = assetsById[locationId]?.takeIf { visited.add(it.itemId) } ?: break
-                    containers += inventory.itemNames[parent.itemId]
-                        ?: inventory.typeNames[parent.typeId]
-                        ?: "Unknown type (${parent.typeId})"
-                    locationId = parent.locationId
-                }
-                rows += AssetRow(
-                    characterName = character.name,
-                    stationName = inventory.locationNames[locationId] ?: "Location $locationId",
-                    containerPath = containers.asReversed().joinToString(" > "),
-                    typeName = inventory.typeNames[item.typeId] ?: "Unknown type (${item.typeId})",
-                    quantity = item.quantity,
-                )
-            }
-        }
+        val characterResults = characters.map { characterAssets(it) }
+        val rows = characterResults.flatMap(CharacterAssets::rows)
+        val failures = characterResults.mapNotNull(CharacterAssets::failure)
         val sorted = rows.sortedWith(
             compareBy<AssetRow> { it.characterName.lowercase() }
                 .thenBy { it.stationName.lowercase() }
@@ -77,6 +46,56 @@ class ListAssets(private val source: AssetSource) {
         )
         return AssetListing(SearchAssets()(sorted, query), failures)
     }
+
+    private suspend fun characterAssets(character: EveCharacter): CharacterAssets {
+        val assets = loadAssets(character).getOrElse { error ->
+            return CharacterAssets(
+                failure = AssetLoadFailure(
+                    character.id,
+                    character.name,
+                    error.message ?: "Unable to load assets",
+                ),
+            )
+        }
+        val assetsById = assets.associateBy(AssetItem::itemId)
+        return CharacterAssets(rows = assets.map { it.toAssetRow(character, assetsById) })
+    }
+
+    private suspend fun loadAssets(character: EveCharacter): Result<List<AssetItem>> = try {
+        Result.success(source.load(character))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    private fun AssetItem.toAssetRow(
+        character: EveCharacter,
+        assetsById: Map<Long, AssetItem>,
+    ): AssetRow {
+        val containers = mutableListOf<String>()
+        val visited = mutableSetOf(itemId)
+        var currentLocation = location
+        while (true) {
+            val parent = assetsById[currentLocation.id]?.takeIf { visited.add(it.itemId) } ?: break
+            containers += parent.customName
+                ?: parent.type.name
+                ?: "Unknown type (${parent.type.id})"
+            currentLocation = parent.location
+        }
+        return AssetRow(
+            characterName = character.name,
+            stationName = currentLocation.name ?: "Location ${currentLocation.id}",
+            containerPath = containers.asReversed().joinToString(" > "),
+            typeName = type.name ?: "Unknown type (${type.id})",
+            quantity = quantity,
+        )
+    }
+
+    private data class CharacterAssets(
+        val rows: List<AssetRow> = emptyList(),
+        val failure: AssetLoadFailure? = null,
+    )
 }
 
 class SearchAssets {

@@ -26,7 +26,7 @@ class RefreshingAssetSourceTest {
         var accessTokenUsed: String? = null
         val delegate = AssetSource { requestedCharacter ->
             accessTokenUsed = requestedCharacter.token.accessToken
-            AssetInventory(emptyList(), emptyMap(), emptyMap())
+            emptyList()
         }
         val source = RefreshingAssetSource(
             repository,
@@ -53,8 +53,7 @@ class RefreshingAssetSourceTest {
             repository,
             refresh,
             Clock.fixed(now, ZoneOffset.UTC),
-            { error("asset request must not run") },
-        )
+        ) { error("asset request must not run") }
 
         val result = ListAssets(source)(listOf(character))
 

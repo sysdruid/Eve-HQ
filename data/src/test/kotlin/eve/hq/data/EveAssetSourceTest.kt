@@ -1,71 +1,99 @@
 package eve.hq.data
 
+import eve.hq.core.asset.AssetItem
+import eve.hq.core.asset.AssetLocation
+import eve.hq.core.asset.AssetType
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
 import eve.hq.data.esi.EveAssetSource
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.OutgoingContent
-import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.io.IOException
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EveAssetSourceTest {
     @Test
-    fun `every asset page is loaded`() = runBlocking {
-        val pages = mutableListOf<String>()
-        val engine = MockEngine { request ->
-            val response = when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> {
-                    val page = request.url.parameters["page"].orEmpty()
-                    pages += page
-                    val itemId = if (page == "1") 101 else 102
-                    respond(
-                        """[{"item_id":$itemId,"type_id":34,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
-                        HttpStatusCode.OK,
-                        headersOf(
-                            HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                            "X-Pages" to listOf("2"),
-                        ),
-                    )
-                }
-                request.url.encodedPath.endsWith("/universe/names/") -> respond(
-                    """[{"category":"inventory_type","id":34,"name":"Tritanium"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond(
-                    "[]",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond(
-                    """{"name":"Jita IV - Moon 4 - Caldari Navy Assembly Plant"}""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                else -> error("Unexpected request: ${request.url}")
-            }
-            response
+    fun `source returns self-contained items with root names custom names and immediate parent ids`() = runBlocking {
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[
+                    {"item_id":700,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},
+                    {"item_id":701,"type_id":34,"quantity":42,"location_id":700,"location_type":"item"},
+                    {"item_id":702,"type_id":9999,"quantity":3,"location_id":60000001,"location_type":"station"}
+                ]""".trimIndent(),
+            )
+            universeNames().willReturn(
+                """[
+                    {"category":"inventory_type","id":100,"name":"Small Secure Container"},
+                    {"category":"inventory_type","id":34,"name":"Tritanium"}
+                ]""".trimIndent(),
+            )
+            characterAssetNames(123).willReturn("""[{"item_id":700,"name":"Hangar Box"}]""")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
-        val inventory = source.load(character)
+        val items = source.load(character)
 
-        assertEquals(listOf("1", "2"), pages)
-        assertEquals(listOf(101L, 102L), inventory.items.map { it.itemId })
+        assertEquals(
+            listOf(
+                AssetItem(
+                    itemId = 700,
+                    type = AssetType(100, "Small Secure Container"),
+                    customName = "Hangar Box",
+                    quantity = 1,
+                    location = AssetLocation(60000001, "Jita"),
+                ),
+                AssetItem(
+                    itemId = 701,
+                    type = AssetType(34, "Tritanium"),
+                    customName = null,
+                    quantity = 42,
+                    location = AssetLocation(700, null),
+                ),
+                AssetItem(
+                    itemId = 702,
+                    type = AssetType(9999, null),
+                    customName = null,
+                    quantity = 3,
+                    location = AssetLocation(60000001, "Jita"),
+                ),
+            ),
+            items,
+        )
+    }
+
+    @Test
+    fun `every asset page is loaded`() = runBlocking {
+        val esi = EsiMock {
+            characterAssets(123).page(1).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
+                headers = mapOf("X-Pages" to "2"),
+            )
+            characterAssets(123).page(2).willReturn(
+                """[{"item_id":102,"type_id":34,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
+            )
+            universeNames().willReturn("""[{"category":"inventory_type","id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita IV - Moon 4 - Caldari Navy Assembly Plant"}""")
+        }
+        val source = EveAssetSource(esi.client, esi.baseUrl)
+        val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
+
+        val items = source.load(character)
+
+        assertEquals(
+            listOf("1", "2"),
+            esi.requests.filter { it.path.endsWith("/characters/123/assets/") }.map { it.queryParameters["page"] },
+        )
+        assertEquals(listOf(101L, 102L), items.map { it.itemId })
     }
 
     @Test
@@ -75,144 +103,86 @@ class EveAssetSourceTest {
         val assets = (0..1000).joinToString(prefix = "[", postfix = "]") { index ->
             """{"item_id":${100000L + index},"type_id":${10000L + index},"quantity":1,"location_id":60000001,"location_type":"station"}"""
         }
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    assets,
-                    HttpStatusCode.OK,
-                    headersOf(
-                        HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                        "X-Pages" to listOf("1"),
-                    ),
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                assets,
+                headers = mapOf("X-Pages" to "1"),
+            )
+            universeNames().willRespond { request ->
+                val ids = Json.decodeFromString<List<Long>>(request.body)
+                typeBatchSizes += ids.size
+                EsiMock.EsiResponse(
+                    ids.joinToString(prefix = "[", postfix = "]") { id ->
+                        """{"category":"inventory_type","id":$id,"name":"Type $id"}"""
+                    },
                 )
-                request.url.encodedPath.endsWith("/universe/names/") -> {
-                    val ids = Json.decodeFromString<List<Long>>(
-                        (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString(),
-                    )
-                    typeBatchSizes += ids.size
-                    respond(
-                        ids.joinToString(prefix = "[", postfix = "]") { id ->
-                            """{"category":"inventory_type","id":$id,"name":"Type $id"}"""
-                        },
-                        HttpStatusCode.OK,
-                        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                    )
-                }
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> {
-                    val ids = Json.decodeFromString<List<Long>>(
-                        (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString(),
-                    )
-                    itemBatchSizes += ids.size
-                    respond(
-                        "[]",
-                        HttpStatusCode.OK,
-                        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                    )
-                }
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond(
-                    """{"name":"Jita"}""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                else -> error("Unexpected request: ${request.url}")
             }
+            characterAssetNames(123).willRespond { request ->
+                val ids = Json.decodeFromString<List<Long>>(request.body)
+                itemBatchSizes += ids.size
+                EsiMock.EsiResponse("[]")
+            }
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
-        val inventory = source.load(character)
+        val items = source.load(character)
 
         assertEquals(listOf(1000, 1), typeBatchSizes)
         assertEquals(listOf(1000, 1), itemBatchSizes)
-        assertEquals(1001, inventory.typeNames.size)
+        assertEquals(1001, items.mapNotNull { it.type.name }.size)
     }
 
     @Test
     fun `an inaccessible structure is left for the caller to display as an id fallback`() = runBlocking {
         val structureId = 1_000_000_000_001L
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":34,"quantity":1,"location_id":$structureId,"location_type":"other"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(
-                        HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                        "X-Pages" to listOf("1"),
-                    ),
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> respond(
-                    "[]",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond(
-                    "[]",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/universe/structures/$structureId/") -> respond(
-                    """{"error":"Forbidden"}""",
-                    HttpStatusCode.Forbidden,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":1,"location_id":$structureId,"location_type":"other"}]""",
+                headers = mapOf("X-Pages" to "1"),
+            )
+            universeNames().willReturn("[]")
+            characterAssetNames(123).willReturn("[]")
+            universeStructures(structureId).willReturn("""{"error":"Forbidden"}""", HttpStatusCode.Forbidden)
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
-        val inventory = source.load(character)
+        val items = source.load(character)
 
-        assertEquals(1, inventory.items.size)
-        assertFalse(structureId in inventory.locationNames)
+        assertEquals(1, items.size)
+        assertEquals(AssetLocation(structureId, null), items.single().location)
     }
 
     @Test
     fun `missing asset scope gives a reauthorization hint`() = runBlocking {
-        val engine = MockEngine { request ->
-            assertEquals("Bearer access", request.headers[HttpHeaders.Authorization])
-            respond(
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
                 """{"error":"token is not valid for this scope"}""",
                 HttpStatusCode.Forbidden,
-                headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
             )
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
 
+        assertEquals("Bearer access", esi.requests.single().headers[HttpHeaders.Authorization])
         assertTrue(result.failures.single().message.contains("re-authorize", ignoreCase = true))
     }
 
     @Test
     fun `custom container names are shown and searchable in the asset path`() = runBlocking {
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> respond(
-                    """[{"id":100,"name":"Secure Container"},{"id":34,"name":"Tritanium"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond(
-                    """[{"item_id":101,"name":"Mining supplies"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond(
-                    """{"name":"Jita"}""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
+            )
+            universeNames().willReturn("""[{"id":100,"name":"Secure Container"},{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("""[{"item_id":101,"name":"Mining supplies"}]""")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character), "sUpPLiEs")
@@ -225,29 +195,22 @@ class EveAssetSourceTest {
     @Test
     fun `an unknown type id does not hide other asset names or rows`() = runBlocking {
         val unknownType = 2147483647L
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":$unknownType,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
-                    HttpStatusCode.OK,
-                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> {
-                    val ids = Json.decodeFromString<List<Long>>(
-                        (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString(),
-                    )
-                    if (unknownType in ids) {
-                        respond("""{"error":"Ensure all IDs are valid before resolving."}""", HttpStatusCode.NotFound)
-                    } else {
-                        respond("""[{"id":34,"name":"Tritanium"}]""", HttpStatusCode.OK)
-                    }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":$unknownType,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
+            )
+            universeNames().willRespond { request ->
+                val ids = Json.decodeFromString<List<Long>>(request.body)
+                if (unknownType in ids) {
+                    EsiMock.EsiResponse("""{"error":"Ensure all IDs are valid before resolving."}""", HttpStatusCode.NotFound)
+                } else {
+                    EsiMock.EsiResponse("""[{"id":34,"name":"Tritanium"}]""")
                 }
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond("[]", HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond("""{"name":"Jita"}""", HttpStatusCode.OK)
-                else -> error("Unexpected request: ${request.url}")
             }
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
@@ -258,19 +221,15 @@ class EveAssetSourceTest {
 
     @Test
     fun `an unavailable type name service leaves assets visible by id`() = runBlocking {
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":34,"quantity":7,"location_id":60000001,"location_type":"station"}]""",
-                    HttpStatusCode.OK,
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> respond("unavailable", HttpStatusCode.ServiceUnavailable)
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond("[]", HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond("""{"name":"Jita"}""", HttpStatusCode.OK)
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":7,"location_id":60000001,"location_type":"station"}]""",
+            )
+            universeNames().willReturn("unavailable", HttpStatusCode.ServiceUnavailable)
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
@@ -283,20 +242,16 @@ class EveAssetSourceTest {
     @Test
     fun `unavailable station and structure names leave assets visible by location id`() = runBlocking {
         val structureId = 1_000_000_000_001L
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":2,"location_id":$structureId,"location_type":"other"}]""",
-                    HttpStatusCode.OK,
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> respond("""[{"id":34,"name":"Tritanium"}]""", HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond("[]", HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond("unavailable", HttpStatusCode.ServiceUnavailable)
-                request.url.encodedPath.endsWith("/universe/structures/$structureId/") -> respond("unavailable", HttpStatusCode.ServiceUnavailable)
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":2,"location_id":$structureId,"location_type":"other"}]""",
+            )
+            universeNames().willReturn("""[{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("unavailable", HttpStatusCode.ServiceUnavailable)
+            universeStructures(structureId).willReturn("unavailable", HttpStatusCode.ServiceUnavailable)
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
@@ -307,22 +262,15 @@ class EveAssetSourceTest {
 
     @Test
     fun `unavailable container names fall back to the container type`() = runBlocking {
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(
-                    """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
-                    HttpStatusCode.OK,
-                )
-                request.url.encodedPath.endsWith("/universe/names/") -> respond(
-                    """[{"id":100,"name":"Secure Container"},{"id":34,"name":"Tritanium"}]""",
-                    HttpStatusCode.OK,
-                )
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond("unavailable", HttpStatusCode.ServiceUnavailable)
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond("""{"name":"Jita"}""", HttpStatusCode.OK)
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
+            )
+            universeNames().willReturn("""[{"id":100,"name":"Secure Container"},{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("unavailable", HttpStatusCode.ServiceUnavailable)
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
@@ -333,17 +281,15 @@ class EveAssetSourceTest {
 
     @Test
     fun `connection failures in name lookups preserve fetched assets`() = runBlocking {
-        val engine = MockEngine { request ->
-            if (request.url.encodedPath.endsWith("/characters/123/assets/")) {
-                respond(
-                    """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
-                    HttpStatusCode.OK,
-                )
-            } else {
-                throw IOException("lookup unavailable")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":100,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":34,"quantity":42,"location_id":101,"location_type":"item"}]""",
+            )
+            universeNames().willFail(IOException("lookup unavailable"))
+            characterAssetNames(123).willFail(IOException("lookup unavailable"))
+            universeStations(60000001).willFail(IOException("lookup unavailable"))
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
@@ -357,29 +303,23 @@ class EveAssetSourceTest {
 
     @Test
     fun `repeated name lookup not found responses are bounded`() = runBlocking {
-        var nameRequests = 0
         val assets = (1..100).joinToString(prefix = "[", postfix = "]") { index ->
             """{"item_id":${1000 + index},"type_id":${10000 + index},"quantity":1,"location_id":60000001,"location_type":"station"}"""
         }
-        val engine = MockEngine { request ->
-            when {
-                request.url.encodedPath.endsWith("/characters/123/assets/") -> respond(assets, HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/universe/names/") -> {
-                    nameRequests++
-                    respond("not found", HttpStatusCode.NotFound)
-                }
-                request.url.encodedPath.endsWith("/characters/123/assets/names/") -> respond("[]", HttpStatusCode.OK)
-                request.url.encodedPath.endsWith("/universe/stations/60000001/") -> respond("""{"name":"Jita"}""", HttpStatusCode.OK)
-                else -> error("Unexpected request: ${request.url}")
-            }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(assets)
+            universeNames().willReturn("not found", HttpStatusCode.NotFound)
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
         }
-        val source = EveAssetSource(HttpClient(engine), "https://esi.test/latest/")
+        val source = EveAssetSource(esi.client, esi.baseUrl)
         val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
 
         val result = ListAssets(source)(listOf(character))
 
         assertEquals(100, result.items.size)
         assertEquals(emptyList(), result.failures)
+        val nameRequests = esi.requests.count { it.path.endsWith("/universe/names/") }
         assertTrue(nameRequests <= 8, "Name lookup requests: $nameRequests")
     }
 }
