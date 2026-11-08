@@ -26,3 +26,6 @@ The working plan is kept in a local, untracked `TESTLIST.md` (the `tdd` skill cr
 - **Journal on completion.** When a plan step or feature is finished (its tests are green), invoke
   the `journal` skill before the final wrap-up. Append to the day's file for that topic in
   `docs/journal/` if one exists. Journal entries are committed with the work.
+- **Comment only complex or quirky code.** Add a comment when the reason is not obvious from the code:
+  a workaround, a non-obvious constraint, a surprising trade-off. Say why, not what. Do not comment
+  code that names and structure already explain, and do not restate a function's name in its KDoc.

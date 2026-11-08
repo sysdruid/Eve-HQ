@@ -27,7 +27,6 @@ class FeatureSystem {
     val sso = FakeSso()
     private val repository: CharacterRepository = JooqCharacterRepository(dataSource)
 
-    /** Sets up the database state (replacing whatever is there). */
     fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
 
     fun listCharacters(): List<EveCharacter> = ListCharacters(repository)()
@@ -36,7 +35,6 @@ class FeatureSystem {
     fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
 }
 
-/** Fake of the real boundary: a login that returns whatever the scenario says. */
 class FakeSso : SsoAuthenticator {
     var next: () -> EveCharacter = { error("no login scripted") }
 
