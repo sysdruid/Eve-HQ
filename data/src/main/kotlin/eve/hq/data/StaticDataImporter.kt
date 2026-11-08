@@ -40,6 +40,7 @@ class StaticDataImporter(private val dataSource: DataSource) {
             dataSource.connection.use { connection ->
                 replaceData(connection) {
                     connection.createStatement().use { statement ->
+                        statement.executeUpdate("delete from blueprints")
                         statement.executeUpdate("delete from types")
                         statement.executeUpdate("delete from groups")
                         statement.executeUpdate("delete from categories")
@@ -47,6 +48,7 @@ class StaticDataImporter(private val dataSource: DataSource) {
                     importCategories(zip, entries.getValue(CATEGORIES), connection)
                     importGroups(zip, entries.getValue(GROUPS), connection)
                     importTypes(zip, entries.getValue(TYPES), connection)
+                    importBlueprints(zip, entries.getValue(BLUEPRINTS), connection)
                     replaceValidators(connection, source, validators)
                 }
             }
@@ -119,6 +121,18 @@ class StaticDataImporter(private val dataSource: DataSource) {
         }
     }
 
+    private fun importBlueprints(zip: ZipFile, entry: ZipEntry, connection: Connection) {
+        importRecords(
+            zip,
+            entry,
+            connection,
+            "insert into blueprints (type_id, max_production_limit) values (?, ?)",
+        ) { statement, record, line ->
+            statement.setLong(1, record.requiredLong("blueprintTypeID", BLUEPRINTS, line))
+            statement.setInt(2, record.requiredLong("maxProductionLimit", BLUEPRINTS, line).toInt())
+        }
+    }
+
     private fun importRecords(
         zip: ZipFile,
         entry: ZipEntry,
@@ -168,7 +182,8 @@ class StaticDataImporter(private val dataSource: DataSource) {
         private const val CATEGORIES = "categories.jsonl"
         private const val GROUPS = "groups.jsonl"
         private const val TYPES = "types.jsonl"
+        private const val BLUEPRINTS = "blueprints.jsonl"
         private const val BATCH_SIZE = 1000
-        private val REQUIRED_ENTRIES = listOf(CATEGORIES, GROUPS, TYPES)
+        private val REQUIRED_ENTRIES = listOf(CATEGORIES, GROUPS, TYPES, BLUEPRINTS)
     }
 }

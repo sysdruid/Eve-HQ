@@ -23,8 +23,9 @@ The archive must contain these files at its root:
 - `categories.jsonl`
 - `groups.jsonl`
 - `types.jsonl`
+- `blueprints.jsonl`
 
-The command opens Eve-HQ's configured database and imports the English category, group, and type names. It does not start the GUI or use EVE SSO. Set `EVE_HQ_DATA_DIR` to select a non-default application data directory.
+The command opens Eve-HQ's configured database and imports the English category, group, and type names, plus each blueprint's maximum production limit. It does not start the GUI or use EVE SSO. Set `EVE_HQ_DATA_DIR` to select a non-default application data directory.
 
 A successful import replaces the previous static dataset. Types marked unpublished are also imported so owned assets can still be named. If a download fails, a required archive entry or English name is missing, a record is malformed, or a parent relationship is invalid, the import fails and the previous dataset and download validators are retained. Importing a local file clears the validators, so the next remote import downloads afresh.
 

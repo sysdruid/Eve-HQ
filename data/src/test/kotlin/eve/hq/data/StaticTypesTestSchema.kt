@@ -7,6 +7,7 @@ interface IStaticTypesTestSchema : IDBSchema {
     fun categories(): ICategoryRecord
     fun groups(): IGroupRecord
     fun types(): ITypeRecord
+    fun blueprints(): IBlueprintRecord
 
     interface ICategoryRecord : IDBSchema.IDBRecord {
         fun id(value: Long): ICategoryRecord
@@ -24,5 +25,10 @@ interface IStaticTypesTestSchema : IDBSchema {
         fun group_id(value: Long): ITypeRecord
         fun name(value: String): ITypeRecord
         fun published(value: Boolean): ITypeRecord
+    }
+
+    interface IBlueprintRecord : IDBSchema.IDBRecord {
+        fun type_id(value: Long): IBlueprintRecord
+        fun max_production_limit(value: Int): IBlueprintRecord
     }
 }

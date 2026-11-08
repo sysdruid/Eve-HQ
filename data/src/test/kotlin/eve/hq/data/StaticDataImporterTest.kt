@@ -27,6 +27,23 @@ class StaticDataImporterTest {
     }
 
     @Test
+    fun `imports the max production limit of a blueprint`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                """{"_key":6,"name":{"en":"Manufacture"},"published":true}""",
+                """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}""",
+                """{"_key":681,"groupID":18,"name":{"en":"Rifter Blueprint"},"published":true}""",
+                blueprint = """{"_key":681,"activities":{"copying":{"time":480},"manufacturing":{"materials":[{"quantity":86,"typeID":38}],"products":[{"quantity":1,"typeID":165}],"time":600}},"blueprintTypeID":681,"maxProductionLimit":300}""",
+            ),
+        )
+
+        assertEquals(300, importedMaxProductionLimit(681))
+    }
+
+    @Test
     fun `imports unpublished types and ignores additional CCP fields`(@TempDir dir: Path) {
         Migrations.migrate(dataSource)
 
@@ -132,11 +149,58 @@ class StaticDataImporterTest {
         assertEquals(null, importedType(35))
     }
 
-    private fun archiveWithRecords(dir: Path, category: String, group: String, type: String): Path = archiveWithEntries(
+    @Test
+    fun `a blueprint of an unknown type leaves existing static rows untouched`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        importer.importArchive(existingTypeArchive(dir))
+        val archiveWithOrphanBlueprint = archiveWithRecords(
+            dir,
+            """{"_key":6,"name":{"en":"Manufacture"},"published":true}""",
+            """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}""",
+            """{"_key":35,"groupID":18,"name":{"en":"Pyerite"},"published":true}""",
+            blueprint = """{"_key":999,"blueprintTypeID":999,"maxProductionLimit":10}""",
+        )
+
+        assertFailsWith<SQLException> { importer.importArchive(archiveWithOrphanBlueprint) }
+
+        assertEquals("Tritanium" to true, importedType(34))
+        assertNull(importedType(35))
+        assertNull(importedMaxProductionLimit(999))
+    }
+
+    @Test
+    fun `a re-import replaces the previous blueprints`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        val types = """{"_key":681,"groupID":18,"name":{"en":"Rifter Blueprint"},"published":true}""" + "\n" +
+            """{"_key":682,"groupID":18,"name":{"en":"Merlin Blueprint"},"published":true}"""
+        val category = """{"_key":6,"name":{"en":"Manufacture"},"published":true}"""
+        val group = """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}"""
+        importer.importArchive(
+            archiveWithRecords(dir, category, group, types, """{"blueprintTypeID":681,"maxProductionLimit":300}"""),
+        )
+
+        importer.importArchive(
+            archiveWithRecords(dir, category, group, types, """{"blueprintTypeID":682,"maxProductionLimit":50}"""),
+        )
+
+        assertNull(importedMaxProductionLimit(681))
+        assertEquals(50, importedMaxProductionLimit(682))
+    }
+
+    private fun archiveWithRecords(
+        dir: Path,
+        category: String,
+        group: String,
+        type: String,
+        blueprint: String = "",
+    ): Path = archiveWithEntries(
         dir,
         "categories.jsonl" to category,
         "groups.jsonl" to group,
         "types.jsonl" to type,
+        "blueprints.jsonl" to blueprint,
     )
 
     private fun archiveWithEntries(dir: Path, vararg entries: Pair<String, String>): Path {
@@ -153,6 +217,13 @@ class StaticDataImporterTest {
         """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}""",
         """{"_key":34,"groupID":18,"name":{"en":"Tritanium"},"published":true}""",
     )
+
+    private fun importedMaxProductionLimit(typeId: Long): Int? = dataSource.connection.use { connection ->
+        connection.prepareStatement("select max_production_limit from blueprints where type_id = ?").use { statement ->
+            statement.setLong(1, typeId)
+            statement.executeQuery().use { result -> if (result.next()) result.getInt(1) else null }
+        }
+    }
 
     private fun importedType(id: Long): Pair<String, Boolean>? = dataSource.connection.use { connection ->
         connection.prepareStatement("select name, published from types where id = ?").use { statement ->
