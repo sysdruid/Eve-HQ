@@ -21,6 +21,8 @@ Iteration 1 in progress: log in via EVE SSO and list characters. The Gradle skel
 (`core`, `data`, `app`) builds; domain logic, persistence and UI are being added step by step.
 The working plan is kept in a local, untracked `TESTLIST.md` (the `tdd` skill creates it).
 
+For guidance on extending static-data imports, see [docs/static-data-import.md](docs/static-data-import.md).
+
 ## Additional rules
 
 - **Review readability.** After tests pass, review the production code and tests touched by the task;

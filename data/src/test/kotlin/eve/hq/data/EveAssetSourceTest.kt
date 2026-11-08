@@ -11,13 +11,45 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import org.h2.jdbcx.JdbcDataSource
+import org.jdbscript.JDBEngine
 import java.io.IOException
 import java.time.Instant
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class EveAssetSourceTest {
+    @Test
+    fun `static names are used for known assets while ESI resolves unknown types`() = runBlocking {
+        val dataSource = JdbcDataSource().apply {
+            setURL("jdbc:h2:mem:${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
+        }
+        Migrations.migrate(dataSource)
+        val staticTypes = JDBEngine.builder(IStaticTypesTestSchema::class.java).dataSource(dataSource).build()
+        staticTypes.resetDB { db ->
+            db.include(StandardStaticTypes::class.java)
+        }
+        staticTypes.updateDB { db ->
+            db.types().id(34).name("Static Tritanium")
+        }
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"},{"item_id":102,"type_id":999,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
+            )
+            universeNames().willReturn("""[{"id":999,"name":"ESI Type"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
+        }
+
+        val source = EveAssetSource(esi.client, esi.baseUrl, StaticTypeNameRepository(dataSource))
+        val items = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertEquals(listOf("Static Tritanium", "ESI Type"), items.map { it.type.name })
+        assertEquals("[999]", esi.requests.single { it.path.endsWith("/universe/names/") }.body)
+    }
+
     @Test
     fun `source returns self-contained items with root names custom names and immediate parent ids`() = runBlocking {
         val esi = EsiMock {

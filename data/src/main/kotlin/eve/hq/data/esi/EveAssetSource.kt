@@ -6,6 +6,7 @@ import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
 import eve.hq.core.character.EveCharacter
+import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -26,13 +27,16 @@ import java.io.IOException
 class EveAssetSource(
     private val http: HttpClient,
     baseUrl: String = "https://esi.evetech.net/latest/",
+    private val staticTypeNames: StaticTypeNameRepository? = null,
 ) : AssetSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun load(character: EveCharacter): List<AssetItem> {
         val assets = loadPages(character)
-        val typeNames = loadTypeNames(assets.map(EsiAsset::typeId).distinct())
+        val typeIds = assets.map(EsiAsset::typeId).distinct()
+        val staticNames = staticTypeNames?.findNames(typeIds).orEmpty()
+        val typeNames = loadTypeNames(typeIds.filterNot(staticNames::containsKey)) + staticNames
         val itemNames = loadItemNames(character, assets.map(EsiAsset::itemId))
         val locationNames = loadLocationNames(character, assets)
         val itemIds = assets.mapTo(mutableSetOf(), EsiAsset::itemId)

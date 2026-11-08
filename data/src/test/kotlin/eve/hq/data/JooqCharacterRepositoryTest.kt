@@ -3,6 +3,7 @@ package eve.hq.data
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
 import org.h2.jdbcx.JdbcDataSource
+import org.jdbscript.JDBEngine
 import java.time.Instant
 import java.util.UUID
 import javax.sql.DataSource
@@ -16,6 +17,7 @@ class JooqCharacterRepositoryTest {
         setURL("jdbc:h2:mem:${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
     }.also(Migrations::migrate)
 
+    private val engine = JDBEngine.builder(ICharacterTestSchema::class.java).dataSource(dataSource).build()
     private val repository = JooqCharacterRepository(dataSource, TokenCipher(ByteArray(32) { it.toByte() }))
 
     private val alice = EveCharacter(
@@ -41,16 +43,12 @@ class JooqCharacterRepositoryTest {
         assertEquals(alice, repository.find(1))
     }
 
-    private fun insertPlain(id: Long, name: String, access: String, refresh: String) = dataSource.connection.use { c ->
-        c.createStatement().executeUpdate(
-            "insert into characters (id, name, access_token, refresh_token, token_expires_at, status) " +
-                "values ($id, '$name', '$access', '$refresh', timestamp with time zone '2026-01-01 00:00:00+00', 'VALID')",
-        )
-    }
-
     @Test
     fun `a token stored without encryption is read as it is`() {
-        insertPlain(2, "Bob", "old-access", "old-refresh")
+        engine.insertDB { db ->
+            db.characters().id(2).name("Bob").access_token("old-access").refresh_token("old-refresh")
+                .token_expires_at(Instant.parse("2026-01-01T00:00:00Z")).status("VALID")
+        }
 
         assertEquals(AuthToken("old-access", "old-refresh", Instant.parse("2026-01-01T00:00:00Z")), repository.find(2)?.token)
     }

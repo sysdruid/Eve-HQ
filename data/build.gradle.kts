@@ -15,6 +15,7 @@ dependencies {
     implementation(libs.ktor.client.cio)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.jdbscript)
 
     // Generates jOOQ classes straight from the Flyway migration scripts (no live database needed),
     // so the migrations stay the single source of truth for the schema.

@@ -28,3 +28,15 @@
 - **Publication Takeaway:** A spike that runs the full chain early finds what unit tests never will. Bisect
   by removing one layer at a time (library, migration tool, driver version), and keep the minimal repro
   as a regression test so the next upgrade can't reintroduce it.
+
+### Follow-up
+- Data adapter tests now use jdbscript schemas and typed inserts for static type fixtures, plaintext-token
+  compatibility, and the post-migration CHECK-constraint regression. The existing behavior assertions
+  remain unchanged, and the full Gradle test suite passes.
+
+### Follow-up: shared static-type fixture
+- Added a reusable jdbscript baseline for canonical Material/Mineral data and Tritanium/Pyerite, with a
+  repository test proving the real names resolve. The asset-source scenario reuses the fixture and
+  overrides only the record needed to distinguish static lookup from ESI fallback.
+- Added contributor guidance for extending static imports, including migrations, parent-before-child
+  order, streamed transactional replacement, and success/rollback tests.

@@ -1,6 +1,7 @@
 package eve.hq.data
 
 import org.h2.jdbcx.JdbcDataSource
+import org.jdbscript.JDBEngine
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,17 +25,25 @@ class MigrationsTest {
         assertTrue("CHARACTERS" in tables, "tables: $tables")
     }
 
+    @Test
+    fun `migrations create static type hierarchy tables`() {
+        Migrations.migrate(dataSource)
+
+        val tables = query("select table_name from information_schema.tables where table_schema = 'PUBLIC'") { rs ->
+            buildSet { while (rs.next()) add(rs.getString(1)) }
+        }
+
+        assertTrue(setOf("CATEGORIES", "GROUPS", "TYPES").all(tables::contains), "tables: $tables")
+    }
+
     // Regression guard: H2 2.4.240 broke inserts into tables with a CHECK constraint once the connection
     // that created the table (the migration connection) had closed.
     @Test
     fun `after migrating, a new connection can insert a row that satisfies the status check`() {
         Migrations.migrate(dataSource)
 
-        dataSource.connection.use { c ->
-            c.createStatement().executeUpdate(
-                "insert into characters (id, name, access_token, refresh_token, token_expires_at, status) " +
-                    "values (1, 'Alice', 'a', 'r', timestamp with time zone '2026-01-01 00:00:00+00', 'VALID')",
-            )
+        JDBEngine.builder(ICharacterTestSchema::class.java).dataSource(dataSource).build().insertDB { db ->
+            db.characters().id(1).name("Alice").status("VALID")
         }
 
         assertEquals(1, query("select count(*) from characters") { rs -> rs.next(); rs.getInt(1) })
