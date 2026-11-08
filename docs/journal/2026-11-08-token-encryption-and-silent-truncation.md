@@ -20,9 +20,8 @@
     scenario with a long token; fixed by V2 widening both token columns (kept NOT NULL, existing rows preserved).
   - An unexpected exception during login left the screen on "waiting" forever; the ViewModel now catches it. The
     test fake also had to reset after a failure, or the next login re-threw the stale one.
-  - A "callback does not work" report turned out not to be transport: a real headless Chromium reached the real
-    callback server over IPv4 and IPv6 in the container, and an earlier login had worked. The suspect moved to the
-    all-scopes request itself.
+  - A "callback does not work" report first looked like an all-scopes regression, but it was transport (see the
+    callback-ipv6 entry); every earlier login had been finished by pasting the URL into wget.
   - Running the GUI against a copy of the data on the owner's screen invited a click on Remove, which looked like
     a migration losing a row until applying the migration by hand to the backup kept it.
   - The pre-migration backup holds the old plain tokens; it is a snapshot, not encrypted.
