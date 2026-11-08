@@ -17,4 +17,12 @@ Kotlin Multiplatform (Compose Desktop) operations dashboard for managing EVE Onl
 
 ## Status
 
-Greenfield. Nothing is built yet.
+Iteration 1 in progress: log in via EVE SSO and list characters. The Gradle skeleton
+(`core`, `data`, `app`) builds; domain logic, persistence and UI are being added step by step.
+The plan lives in `TESTLIST.md`.
+
+## Additional rules
+
+- **Journal on completion.** When a plan step or feature is finished (its tests are green), invoke
+  the `journal` skill before the final wrap-up. Append to the day's file for that topic in
+  `docs/journal/` if one exists. Journal entries are committed with the work.
