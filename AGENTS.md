@@ -23,6 +23,13 @@ The working plan is kept in a local, untracked `TESTLIST.md` (the `tdd` skill cr
 
 ## Additional rules
 
+- **Review readability.** After tests pass, review the production code and tests touched by the task;
+  apply the same review to changes outside TDD. Separate orchestration from distinct operations when
+  named helpers clarify intent, and prefer APIs that minimize consumer bookkeeping. Make tests show
+  the scenario, action, and outcome; hide repeated infrastructure setup behind small, domain- or
+  endpoint-named helpers. `ListAssets` and `EsiMock` are examples, not mandatory templates. Preserve
+  behavior and meaningful assertions, rerun affected tests, and avoid speculative abstractions or
+  extractions that only add indirection. Keep the refactoring within the task's scope.
 - **Journal on completion.** When a plan step or feature is finished (its tests are green), invoke
   the `journal` skill before the final wrap-up. Append to the day's file for that topic in
   `docs/journal/` if one exists. Journal entries are committed with the work.
