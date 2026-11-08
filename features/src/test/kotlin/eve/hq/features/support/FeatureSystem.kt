@@ -22,6 +22,7 @@ import eve.hq.core.industry.ListJobs
 import eve.hq.core.industry.RefreshingJobSource
 import eve.hq.data.EsiMock
 import eve.hq.data.JooqAssetCacheRepository
+import eve.hq.data.JooqBlueprintPageCache
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
 import eve.hq.data.JooqLocationNameCache
@@ -108,6 +109,7 @@ class FeatureSystem {
                 staticTypeNames = StaticTypeNameRepository(dataSource),
                 staticBlueprints = StaticBlueprintRepository(dataSource),
                 locationNames = JooqLocationNameCache(dataSource),
+                pageCache = JooqBlueprintPageCache(dataSource),
                 clock = clock,
             ),
         ),

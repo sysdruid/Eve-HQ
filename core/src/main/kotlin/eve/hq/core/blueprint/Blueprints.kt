@@ -95,3 +95,18 @@ class SearchBlueprints {
             (query.isBlank() || listOf(row.blueprintName, row.characterName, row.locationName).any { it.contains(query.trim(), ignoreCase = true) })
     }
 }
+
+data class CachedBlueprintPage(
+    val page: Int,
+    val body: String,
+    val etag: String?,
+    val expiresAt: Instant?,
+    val pageCount: Int,
+)
+
+interface BlueprintPageCache {
+    fun findPage(characterId: Long, page: Int): CachedBlueprintPage?
+
+    /** Replaces every saved page of the character, so pages the list no longer has disappear. */
+    fun replace(characterId: Long, pages: List<CachedBlueprintPage>)
+}

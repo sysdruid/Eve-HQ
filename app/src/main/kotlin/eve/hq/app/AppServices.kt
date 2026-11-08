@@ -17,6 +17,7 @@ import eve.hq.core.industry.RefreshingJobSource
 import eve.hq.data.AppConfig
 import eve.hq.data.FileDatabase
 import eve.hq.data.JooqAssetCacheRepository
+import eve.hq.data.JooqBlueprintPageCache
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
 import eve.hq.data.JooqLocationNameCache
@@ -52,6 +53,7 @@ object AppServices {
         val database = FileDatabase.open(dataDir, clock)
         val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
         val assetCache = JooqAssetCacheRepository(database.dataSource)
+        val blueprintPageCache = JooqBlueprintPageCache(database.dataSource)
         val locationNames = JooqLocationNameCache(database.dataSource)
         val staticBlueprints = StaticBlueprintRepository(database.dataSource)
         val jobPageCache = JooqJobPageCache(database.dataSource)
@@ -99,6 +101,7 @@ object AppServices {
                     staticTypeNames = staticTypeNames,
                     staticBlueprints = staticBlueprints,
                     locationNames = locationNames,
+                    pageCache = blueprintPageCache,
                     clock = clock,
                 ),
             )

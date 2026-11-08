@@ -3,7 +3,9 @@ package eve.hq.data.esi
 import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetType
 import eve.hq.core.blueprint.BlueprintKind
+import eve.hq.core.blueprint.BlueprintPageCache
 import eve.hq.core.blueprint.BlueprintSource
+import eve.hq.core.blueprint.CachedBlueprintPage
 import eve.hq.core.blueprint.OwnedBlueprint
 import eve.hq.core.character.EveCharacter
 import eve.hq.data.LocationNameCache
@@ -12,7 +14,10 @@ import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -24,7 +29,8 @@ class EveBlueprintSource(
     staticTypeNames: StaticTypeNameRepository? = null,
     private val staticBlueprints: StaticBlueprintRepository? = null,
     locationNames: LocationNameCache? = null,
-    clock: Clock = Clock.systemUTC(),
+    private val pageCache: BlueprintPageCache? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) : BlueprintSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
@@ -53,19 +59,49 @@ class EveBlueprintSource(
     }
 
     private suspend fun loadPages(character: EveCharacter): List<EsiBlueprint> {
-        val blueprints = mutableListOf<EsiBlueprint>()
+        val pages = mutableListOf<CachedBlueprintPage>()
+        var refetched = false
         var pageCount = 1
         var page = 1
         while (page <= pageCount) {
-            val response = http.get("${baseUrl}characters/${character.id}/blueprints/") {
-                bearerAuth(character.token.accessToken)
-                parameter("page", page)
+            val cached = pageCache?.findPage(character.id, page)
+            val loaded = if (cached?.expiresAt?.isAfter(clock.instant()) == true) {
+                cached
+            } else {
+                refetched = true
+                fetchPage(character, page, cached)
             }
-            if (page == 1) pageCount = response.headers["X-Pages"]?.toIntOrNull()?.takeIf { it > 0 } ?: 1
-            blueprints += json.decodeFromString<List<EsiBlueprint>>(response.bodyOrFail("blueprints", "blueprint"))
+            if (page == 1) pageCount = loaded.pageCount
+            pages += loaded
             page++
         }
-        return blueprints
+        // Rewriting also drops cached pages beyond the current page count.
+        if (refetched || pageCache?.findPage(character.id, pageCount + 1) != null) pageCache?.replace(character.id, pages)
+        return pages.flatMap { json.decodeFromString<List<EsiBlueprint>>(it.body) }
+    }
+
+    private suspend fun fetchPage(character: EveCharacter, page: Int, cached: CachedBlueprintPage?): CachedBlueprintPage {
+        val response = http.get("${baseUrl}characters/${character.id}/blueprints/") {
+            bearerAuth(character.token.accessToken)
+            parameter("page", page)
+            cached?.etag?.let { header(HttpHeaders.IfNoneMatch, it) }
+        }
+        val pageCount = response.headers["X-Pages"]?.toIntOrNull()?.takeIf { it > 0 }
+        return if (response.status == HttpStatusCode.NotModified && cached != null) {
+            cached.copy(
+                etag = response.headers[HttpHeaders.ETag] ?: cached.etag,
+                expiresAt = response.expiresAt(),
+                pageCount = pageCount ?: cached.pageCount,
+            )
+        } else {
+            CachedBlueprintPage(
+                page = page,
+                body = response.bodyOrFail("blueprints", "blueprint"),
+                etag = response.headers[HttpHeaders.ETag],
+                expiresAt = response.expiresAt(),
+                pageCount = pageCount ?: 1,
+            )
+        }
     }
 
     @Serializable

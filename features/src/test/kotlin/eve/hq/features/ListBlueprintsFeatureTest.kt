@@ -37,12 +37,25 @@ class ListBlueprintsFeatureTest {
         }
     }
 
-    private fun EsiMock.aliceOwnsOneCopyAndOneOriginal() {
+    @Test
+    fun `a blueprint page that has not expired is served from the database on the next listing`() = runBlocking<Unit> {
+        system.given { characters().id(1).name("Alice").status("VALID").token_expires_at(system.now.plusSeconds(3600)) }
+        system.esi.aliceOwnsOneCopyAndOneOriginal(expires = "Sun, 08 Nov 2026 13:00:00 GMT")
+        system.listBlueprints()
+
+        val again = system.listBlueprints()
+
+        assertThat(again.rows.map(BlueprintRow::itemId)).containsExactly(1001L, 1002L)
+        assertThat(system.esi.requests.count { it.path.endsWith("/characters/1/blueprints/") }).isEqualTo(1)
+    }
+
+    private fun EsiMock.aliceOwnsOneCopyAndOneOriginal(expires: String? = null) {
         characterBlueprints(1).willReturn(
             """[{"item_id":1001,"type_id":681,"location_id":60003760,"location_flag":"Hangar",
                 "material_efficiency":10,"time_efficiency":20,"quantity":-1,"runs":-1},
                 {"item_id":1002,"type_id":681,"location_id":60003760,"location_flag":"Hangar",
                 "material_efficiency":2,"time_efficiency":4,"quantity":-2,"runs":4}]""",
+            headers = listOfNotNull(expires?.let { HttpHeaders.Expires to it }).toMap(),
         )
         characterIndustryJobs(1).willReturn(
             """[{"job_id":9001,"activity_id":1,"blueprint_id":1001,"blueprint_type_id":681,"product_type_id":587,
