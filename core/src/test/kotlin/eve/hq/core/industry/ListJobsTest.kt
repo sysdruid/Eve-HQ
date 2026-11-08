@@ -35,6 +35,7 @@ class ListJobsTest {
                     blueprintName = "Rifter Blueprint",
                     productName = "Rifter",
                     runs = 10,
+                    startedAt = now.minusSeconds(600),
                     endsAt = now.plus(Duration.ofHours(2)),
                     facilityName = "Jita IV - Moon 4",
                 ),
@@ -49,6 +50,7 @@ class ListJobsTest {
                 activity = IndustryActivity.Manufacturing,
                 itemName = "Rifter",
                 runs = 10,
+                startedAt = now.minusSeconds(600),
                 endsAt = now.plus(Duration.ofHours(2)),
                 status = JobStatus.Active,
                 facilityName = "Jita IV - Moon 4",
@@ -115,12 +117,32 @@ class ListJobsTest {
 
     @Test
     fun `remaining time counts down to the end and stops at zero`() {
-        val row = JobRow("Alice", IndustryActivity.Copying, "Rifter Blueprint", 1, now.plusSeconds(90), JobStatus.Active, "Jita")
+        val row = aRow(startedAt = now.minusSeconds(10), endsAt = now.plusSeconds(90))
 
         assertThat(row.remaining(now)).isEqualTo(Duration.ofSeconds(90))
         assertThat(row.remaining(now.plusSeconds(500))).isEqualTo(Duration.ZERO)
         assertThat(row.isReady(now)).isFalse()
         assertThat(row.isReady(now.plusSeconds(90))).isTrue()
+    }
+
+    @Test
+    fun `progress runs from zero at the start to one at the end and stays in that range`() {
+        val row = aRow(startedAt = now, endsAt = now.plusSeconds(100))
+
+        assertThat(row.progress(now.minusSeconds(50))).isEqualTo(0.0)
+        assertThat(row.progress(now)).isEqualTo(0.0)
+        assertThat(row.progress(now.plusSeconds(25))).isEqualTo(0.25)
+        assertThat(row.progress(now.plusSeconds(100))).isEqualTo(1.0)
+        assertThat(row.progress(now.plusSeconds(500))).isEqualTo(1.0)
+    }
+
+    @Test
+    fun `a job ESI calls ready is complete and an instant job has no progress to wait for`() {
+        val ready = aRow(startedAt = now, endsAt = now.plusSeconds(100), status = JobStatus.Ready)
+        val instant = aRow(startedAt = now, endsAt = now)
+
+        assertThat(ready.progress(now.plusSeconds(10))).isEqualTo(1.0)
+        assertThat(instant.progress(now.minusSeconds(1))).isEqualTo(1.0)
     }
 
     @Test
@@ -143,11 +165,23 @@ class ListJobsTest {
         assertFailsWith<CancellationException> { runBlocking { ListJobs(source, clock)(listOf(alice)) } }
     }
 
+    private fun aRow(startedAt: Instant, endsAt: Instant, status: JobStatus = JobStatus.Active) = JobRow(
+        characterName = "Alice",
+        activity = IndustryActivity.Manufacturing,
+        itemName = "Rifter",
+        runs = 1,
+        startedAt = startedAt,
+        endsAt = endsAt,
+        status = status,
+        facilityName = "Jita",
+    )
+
     private fun aJob(
         activity: IndustryActivity = IndustryActivity.Manufacturing,
         blueprintName: String? = "Rifter Blueprint",
         productName: String? = "Rifter",
         runs: Int = 1,
+        startedAt: Instant = now.minusSeconds(600),
         endsAt: Instant = now.plusSeconds(3600),
         status: JobStatus = JobStatus.Active,
         facilityName: String? = "Jita IV - Moon 4",
@@ -157,6 +191,7 @@ class ListJobsTest {
         blueprint = JobItem(1, blueprintName),
         product = productName?.let { JobItem(2, it) },
         runs = runs,
+        startedAt = startedAt,
         endsAt = endsAt,
         status = status,
         facility = JobFacility(60003760, facilityName),

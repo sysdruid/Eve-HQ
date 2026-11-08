@@ -21,6 +21,7 @@ data class IndustryJob(
     val blueprint: JobItem,
     val product: JobItem?,
     val runs: Int,
+    val startedAt: Instant,
     val endsAt: Instant,
     val status: JobStatus,
     val facility: JobFacility,
@@ -35,10 +36,19 @@ data class JobRow(
     val activity: IndustryActivity,
     val itemName: String,
     val runs: Int,
+    val startedAt: Instant,
     val endsAt: Instant,
     val status: JobStatus,
     val facilityName: String,
 ) {
+    /** Fraction of the job's duration that has passed, from 0.0 to 1.0. */
+    fun progress(now: Instant): Double {
+        if (isReady(now)) return 1.0
+        val total = Duration.between(startedAt, endsAt)
+        if (total.isZero || total.isNegative) return 1.0
+        return (Duration.between(startedAt, now).toMillis().toDouble() / total.toMillis()).coerceIn(0.0, 1.0)
+    }
+
     fun remaining(now: Instant): Duration = Duration.between(now, endsAt).coerceAtLeast(Duration.ZERO)
 
     // ESI keeps a finished job "active" until delivery, so the clock decides.
@@ -79,6 +89,7 @@ class ListJobs(private val source: JobSource, private val clock: Clock) {
         activity = activity,
         itemName = (product ?: blueprint).let { it.name ?: "Unknown type (${it.id})" },
         runs = runs,
+        startedAt = startedAt,
         endsAt = endsAt,
         status = status,
         facilityName = facility.name ?: "Location ${facility.id}",

@@ -50,7 +50,8 @@ class JobsViewModelTest {
 
         val line = viewModel.state.value.lines.single()
         assertThat(line.text).isEqualTo("Alice-Rifter [1] M  ETL: done  Ready @ Jita IV - Moon 4")
-        assertThat(line.ready).isTrue()
+        assertThat(line.status).isEqualTo(JobLineStatus.Ready)
+        assertThat(line.progress).isEqualTo(1f)
     }
 
     @Test
@@ -85,6 +86,32 @@ class JobsViewModelTest {
     }
 
     @Test
+    fun `a running job's bar fills as time passes and updates every few seconds`() {
+        system.store(1, "Alice")
+        val viewModel = viewModelFor(JobSource {
+            listOf(manufacturing("Rifter", startedAgo = Duration.ZERO, endsIn = Duration.ofSeconds(100)))
+        })
+        val before = viewModel.state.value.lines.single()
+
+        clock.advance(Duration.ofSeconds(5))
+        dispatcher.scheduler.advanceTimeBy(5_000)
+        dispatcher.scheduler.runCurrent() // advanceTimeBy stops just before the tick due at exactly 5s
+
+        assertThat(before.status).isEqualTo(JobLineStatus.Running)
+        assertThat(before.progress).isEqualTo(0f)
+        assertThat(viewModel.state.value.lines.single().progress).isEqualTo(0.05f)
+    }
+
+    @Test
+    fun `a paused job is marked as paused`() {
+        system.store(1, "Alice")
+
+        val viewModel = viewModelFor(JobSource { listOf(manufacturing("Rifter", status = JobStatus.Paused)) })
+
+        assertThat(viewModel.state.value.lines.single().status).isEqualTo(JobLineStatus.Paused)
+    }
+
+    @Test
     fun `a character that fails to load is reported while the others are listed`() {
         system.store(1, "Alice")
         system.store(2, "Bob")
@@ -103,6 +130,7 @@ class JobsViewModelTest {
     private fun manufacturing(
         product: String,
         runs: Int = 1,
+        startedAgo: Duration = Duration.ofMinutes(10),
         endsIn: Duration = Duration.ofHours(1),
         status: JobStatus = JobStatus.Active,
         activity: IndustryActivity = IndustryActivity.Manufacturing,
@@ -113,6 +141,7 @@ class JobsViewModelTest {
         blueprint = JobItem(1, "$product Blueprint"),
         product = JobItem(2, product),
         runs = runs,
+        startedAt = clock.instant().minus(startedAgo),
         endsAt = clock.instant().plus(endsIn),
         status = status,
         facility = facility,

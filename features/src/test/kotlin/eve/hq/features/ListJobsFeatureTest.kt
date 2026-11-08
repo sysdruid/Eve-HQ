@@ -30,6 +30,7 @@ class ListJobsFeatureTest {
                 activity = IndustryActivity.Manufacturing,
                 itemName = "Rifter",
                 runs = 10,
+                startedAt = Instant.parse("2026-11-08T10:00:00Z"),
                 endsAt = Instant.parse("2026-11-08T14:00:00Z"),
                 status = JobStatus.Active,
                 facilityName = "Jita IV - Moon 4",
@@ -67,7 +68,7 @@ class ListJobsFeatureTest {
     private fun EsiMock.aliceHasOneManufacturingJob(expires: String? = null) {
         characterIndustryJobs(1).willReturn(
             """[{"job_id":9001,"activity_id":1,"blueprint_type_id":787,"product_type_id":587,
-                "runs":10,"end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]""",
+                "runs":10,"start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]""",
             headers = listOfNotNull(expires?.let { HttpHeaders.Expires to it }).toMap(),
         )
         universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"},{"id":587,"name":"Rifter"}]""")

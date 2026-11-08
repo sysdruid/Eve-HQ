@@ -29,7 +29,7 @@ class EveJobSourceTest {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
                 """[{"job_id":9001,"activity_id":1,"blueprint_type_id":787,"product_type_id":587,
-                    "runs":10,"end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]""",
+                    "runs":10,"start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"},{"id":587,"name":"Rifter"}]""")
             universeStations(60003760).willReturn("""{"name":"Jita IV - Moon 4"}""")
@@ -44,6 +44,7 @@ class EveJobSourceTest {
                 blueprint = JobItem(787, "Rifter Blueprint"),
                 product = JobItem(587, "Rifter"),
                 runs = 10,
+                startedAt = Instant.parse("2026-11-08T10:00:00Z"),
                 endsAt = Instant.parse("2026-11-08T14:00:00Z"),
                 status = JobStatus.Active,
                 facility = JobFacility(60003760, "Jita IV - Moon 4"),
@@ -55,7 +56,7 @@ class EveJobSourceTest {
     fun `every ESI activity and status maps to its domain value and research jobs have no product`() = runBlocking<Unit> {
         fun job(id: Int, activity: Int, status: String) =
             """{"job_id":$id,"activity_id":$activity,"blueprint_type_id":787,"runs":1,
-                "end_date":"2026-11-08T14:00:00Z","status":"$status","facility_id":60003760}"""
+                "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"$status","facility_id":60003760}"""
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
                 listOf(
@@ -86,7 +87,7 @@ class EveJobSourceTest {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
                 """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
-                    "end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
+                    "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"}]""")
             universeStructures(1035466617946).willReturn("""{"name":"Raitaru of Alice"}""")
@@ -103,7 +104,7 @@ class EveJobSourceTest {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
                 """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
-                    "end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
+                    "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"}]""")
             universeStructures(1035466617946).willReturn("""{"error":"Forbidden"}""", HttpStatusCode.Forbidden)
@@ -202,6 +203,6 @@ class EveJobSourceTest {
         val now: Instant = Instant.parse("2026-11-08T12:00:00Z")
         val clock: Clock = Clock.fixed(now, ZoneOffset.UTC)
         const val ONE_JOB = """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
-            "end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]"""
+            "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]"""
     }
 }

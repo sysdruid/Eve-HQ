@@ -1,12 +1,15 @@
 package eve.hq.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -17,7 +20,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import eve.hq.app.jobs.JobLine
+import eve.hq.app.jobs.JobLineStatus
 import eve.hq.app.jobs.JobsViewModel
 
 @Composable
@@ -40,9 +47,25 @@ fun JobsScreen(viewModel: JobsViewModel) {
             Text("No running jobs.")
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(state.lines) { line ->
-                Text(line.text, color = if (line.ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-            }
+            items(state.lines) { line -> JobLineItem(line) }
         }
+    }
+}
+
+// Fixed pastel colours with dark text: readable regardless of theme until the GUI gets a real design pass.
+private val TRACK = Color(0xFFF1F3F4)
+private val TEXT = Color(0xFF1B1B1B)
+
+private fun JobLineStatus.barColor() = when (this) {
+    JobLineStatus.Running -> Color(0xFFBBDEFB)
+    JobLineStatus.Paused -> Color(0xFFCFD8DC)
+    JobLineStatus.Ready -> Color(0xFFC8E6C9)
+}
+
+@Composable
+private fun JobLineItem(line: JobLine) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(TRACK)) {
+        Box(Modifier.matchParentSize().fillMaxWidth(line.progress).background(line.status.barColor()))
+        Text(line.text, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), color = TEXT)
     }
 }

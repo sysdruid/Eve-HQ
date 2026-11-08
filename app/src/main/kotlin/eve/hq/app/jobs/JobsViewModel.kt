@@ -4,6 +4,7 @@ import eve.hq.core.character.ListCharacters
 import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
+import eve.hq.core.industry.JobStatus
 import eve.hq.core.industry.ListJobs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,7 +19,9 @@ import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Duration
 
-data class JobLine(val text: String, val ready: Boolean)
+enum class JobLineStatus(val label: String) { Running("Active"), Paused("Paused"), Ready("Ready") }
+
+data class JobLine(val text: String, val status: JobLineStatus, val progress: Float)
 
 data class JobsUiState(
     val loading: Boolean = false,
@@ -70,10 +73,15 @@ class JobsViewModel(
         return rows.map { row ->
             val ready = row.isReady(now)
             val etl = if (ready) "done" else row.remaining(now).asEtl()
-            val state = if (ready) "Ready" else row.status.name
+            val status = when {
+                ready -> JobLineStatus.Ready
+                row.status == JobStatus.Paused -> JobLineStatus.Paused
+                else -> JobLineStatus.Running
+            }
             JobLine(
-                text = "${row.characterName}-${row.itemName} [${row.runs}] ${row.activity.code}  ETL: $etl  $state @ ${row.facilityName}",
-                ready = ready,
+                text = "${row.characterName}-${row.itemName} [${row.runs}] ${row.activity.code}  ETL: $etl  ${status.label} @ ${row.facilityName}",
+                status = status,
+                progress = row.progress(now).toFloat(),
             )
         }
     }
@@ -97,6 +105,6 @@ class JobsViewModel(
         }
 
     private companion object {
-        const val COUNTDOWN_TICK_MILLIS = 30_000L
+        const val COUNTDOWN_TICK_MILLIS = 5_000L
     }
 }
