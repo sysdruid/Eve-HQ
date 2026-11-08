@@ -13,7 +13,11 @@ import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
 import eve.hq.core.character.SsoAuthenticator
 import eve.hq.core.character.TokenRefresher
+import eve.hq.core.blueprint.BlueprintListing
+import eve.hq.core.blueprint.ListBlueprints
+import eve.hq.core.blueprint.RefreshingBlueprintSource
 import eve.hq.core.industry.JobListing
+import eve.hq.core.industry.JobSource
 import eve.hq.core.industry.ListJobs
 import eve.hq.core.industry.RefreshingJobSource
 import eve.hq.data.EsiMock
@@ -23,7 +27,9 @@ import eve.hq.data.JooqJobPageCache
 import eve.hq.data.Migrations
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
+import eve.hq.data.StaticBlueprintRepository
 import eve.hq.data.esi.EveAssetSource
+import eve.hq.data.esi.EveBlueprintSource
 import eve.hq.data.esi.EveJobSource
 import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
@@ -62,6 +68,7 @@ class FeatureSystem {
     suspend fun listAssets(): AssetListing = assets(listCharacters())
     fun cachedAssets(): AssetListing = assets.cached(listCharacters())
     suspend fun listJobs(): JobListing = jobs(listCharacters())
+    suspend fun listBlueprints(): BlueprintListing = newBlueprintList()(listCharacters())
     fun reopenJobServices() {
         jobs = newJobList()
     }
@@ -73,22 +80,35 @@ class FeatureSystem {
     fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
     suspend fun refreshToken(id: Long) = RefreshCharacterToken(repository, refresher)(id)
 
-    private fun newJobList(): ListJobs {
-        val source = EveJobSource(
+    private fun newJobList() = ListJobs(newJobSource(), clock)
+
+    private fun newJobSource(): JobSource = RefreshingJobSource(
+        repository,
+        RefreshCharacterToken(repository, refresher),
+        clock,
+        EveJobSource(
             http = esi.client,
             baseUrl = esi.baseUrl,
             staticTypeNames = StaticTypeNameRepository(dataSource),
             pageCache = JooqJobPageCache(dataSource),
             clock = clock,
-        )
-        val refreshingSource = RefreshingJobSource(
+        ),
+    )
+
+    private fun newBlueprintList() = ListBlueprints(
+        RefreshingBlueprintSource(
             repository,
             RefreshCharacterToken(repository, refresher),
             clock,
-            source,
-        )
-        return ListJobs(refreshingSource, clock)
-    }
+            EveBlueprintSource(
+                http = esi.client,
+                baseUrl = esi.baseUrl,
+                staticTypeNames = StaticTypeNameRepository(dataSource),
+                staticBlueprints = StaticBlueprintRepository(dataSource),
+            ),
+        ),
+        newJobSource(),
+    )
 
     private fun newAssetList(): ListAssets {
         val source = EveAssetSource(

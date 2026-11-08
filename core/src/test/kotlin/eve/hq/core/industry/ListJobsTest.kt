@@ -188,6 +188,7 @@ class ListJobsTest {
     ) = IndustryJob(
         jobId = 1,
         activity = activity,
+        blueprintId = 1,
         blueprint = JobItem(1, blueprintName),
         product = productName?.let { JobItem(2, it) },
         runs = runs,

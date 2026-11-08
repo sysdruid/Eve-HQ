@@ -28,7 +28,7 @@ class EveJobSourceTest {
     fun `an ESI manufacturing job becomes an industry job with resolved names`() = runBlocking<Unit> {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
-                """[{"job_id":9001,"activity_id":1,"blueprint_type_id":787,"product_type_id":587,
+                """[{"job_id":9001,"activity_id":1,"blueprint_id":555,"blueprint_type_id":787,"product_type_id":587,
                     "runs":10,"start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"},{"id":587,"name":"Rifter"}]""")
@@ -41,6 +41,7 @@ class EveJobSourceTest {
             IndustryJob(
                 jobId = 9001,
                 activity = IndustryActivity.Manufacturing,
+                blueprintId = 555,
                 blueprint = JobItem(787, "Rifter Blueprint"),
                 product = JobItem(587, "Rifter"),
                 runs = 10,
@@ -55,7 +56,7 @@ class EveJobSourceTest {
     @Test
     fun `every ESI activity and status maps to its domain value and research jobs have no product`() = runBlocking<Unit> {
         fun job(id: Int, activity: Int, status: String) =
-            """{"job_id":$id,"activity_id":$activity,"blueprint_type_id":787,"runs":1,
+            """{"job_id":$id,"activity_id":$activity,"blueprint_id":555,"blueprint_type_id":787,"runs":1,
                 "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"$status","facility_id":60003760}"""
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
@@ -86,7 +87,7 @@ class EveJobSourceTest {
     fun `a job in a player structure resolves the facility name with the character token`() = runBlocking<Unit> {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
-                """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
+                """[{"job_id":1,"activity_id":1,"blueprint_id":555,"blueprint_type_id":787,"runs":1,
                     "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"}]""")
@@ -103,7 +104,7 @@ class EveJobSourceTest {
     fun `a facility whose name cannot be resolved is left unnamed`() = runBlocking<Unit> {
         val esi = EsiMock {
             characterIndustryJobs(123).willReturn(
-                """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
+                """[{"job_id":1,"activity_id":1,"blueprint_id":555,"blueprint_type_id":787,"runs":1,
                     "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":1035466617946}]""",
             )
             universeNames().willReturn("""[{"id":787,"name":"Rifter Blueprint"}]""")
@@ -202,7 +203,7 @@ class EveJobSourceTest {
     private companion object {
         val now: Instant = Instant.parse("2026-11-08T12:00:00Z")
         val clock: Clock = Clock.fixed(now, ZoneOffset.UTC)
-        const val ONE_JOB = """[{"job_id":1,"activity_id":1,"blueprint_type_id":787,"runs":1,
+        const val ONE_JOB = """[{"job_id":1,"activity_id":1,"blueprint_id":555,"blueprint_type_id":787,"runs":1,
             "start_date":"2026-11-08T10:00:00Z","end_date":"2026-11-08T14:00:00Z","status":"active","facility_id":60003760}]"""
     }
 }

@@ -41,6 +41,7 @@ class EveJobSource(
             IndustryJob(
                 jobId = job.jobId,
                 activity = activity(job.activityId),
+                blueprintId = job.blueprintId,
                 blueprint = JobItem(job.blueprintTypeId, typeNames[job.blueprintTypeId]),
                 product = job.productTypeId?.let { JobItem(it, typeNames[it]) },
                 runs = job.runs,
@@ -94,6 +95,7 @@ class EveJobSource(
     private data class EsiJob(
         @SerialName("job_id") val jobId: Long,
         @SerialName("activity_id") val activityId: Int,
+        @SerialName("blueprint_id") val blueprintId: Long,
         @SerialName("blueprint_type_id") val blueprintTypeId: Long,
         @SerialName("product_type_id") val productTypeId: Long? = null,
         val runs: Int,

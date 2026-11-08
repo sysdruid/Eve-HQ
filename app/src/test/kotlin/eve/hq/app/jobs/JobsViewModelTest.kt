@@ -138,6 +138,7 @@ class JobsViewModelTest {
     ) = IndustryJob(
         jobId = 1,
         activity = activity,
+        blueprintId = 1,
         blueprint = JobItem(1, "$product Blueprint"),
         product = JobItem(2, product),
         runs = runs,

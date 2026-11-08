@@ -1,7 +1,7 @@
 package eve.hq.core.industry
 
 import eve.hq.core.character.EveCharacter
-import kotlinx.coroutines.CancellationException
+import eve.hq.core.attempt
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -9,7 +9,9 @@ import java.time.Instant
 enum class IndustryActivity { Manufacturing, TimeEfficiency, MaterialEfficiency, Copying, Invention, ReverseEngineering, Reaction }
 
 /** ESI's own job status; whether an active job is actually finished is derived from the clock. */
-enum class JobStatus { Active, Paused, Ready, Delivered, Cancelled, Reverted }
+enum class JobStatus(val ongoing: Boolean) {
+    Active(true), Paused(true), Ready(true), Delivered(false), Cancelled(false), Reverted(false),
+}
 
 data class JobItem(val id: Long, val name: String?)
 
@@ -18,6 +20,8 @@ data class JobFacility(val id: Long, val name: String?)
 data class IndustryJob(
     val jobId: Long,
     val activity: IndustryActivity,
+    /** Item id of the blueprint being used, to match it against the character's blueprint list. */
+    val blueprintId: Long,
     val blueprint: JobItem,
     val product: JobItem?,
     val runs: Int,
@@ -62,26 +66,14 @@ data class JobListing(val rows: List<JobRow>, val failures: List<JobLoadFailure>
 class ListJobs(private val source: JobSource, private val clock: Clock) {
     suspend operator fun invoke(characters: List<EveCharacter>): JobListing {
         val now = clock.instant()
-        val results = characters.map { character -> character to loadJobs(character) }
+        val results = characters.map { character -> character to attempt { source.load(character) } }
         val rows = results.flatMap { (character, result) ->
-            result.getOrDefault(emptyList()).filter { it.status in LISTED }.map { it.toRow(character) }
+            result.getOrDefault(emptyList()).filter { it.status.ongoing }.map { it.toRow(character) }
         }.sortedWith(compareBy<JobRow> { !it.isReady(now) }.thenBy { it.endsAt })
         val failures = results.mapNotNull { (character, result) ->
             result.exceptionOrNull()?.let { JobLoadFailure(character.id, character.name, it.message ?: "Unable to load jobs") }
         }
         return JobListing(rows, failures)
-    }
-
-    private suspend fun loadJobs(character: EveCharacter): Result<List<IndustryJob>> = try {
-        Result.success(source.load(character))
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Result.failure(e)
-    }
-
-    private companion object {
-        val LISTED = setOf(JobStatus.Active, JobStatus.Paused, JobStatus.Ready)
     }
 
     private fun IndustryJob.toRow(character: EveCharacter) = JobRow(
