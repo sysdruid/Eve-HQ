@@ -1,0 +1,44 @@
+package eve.hq.features.support
+
+import eve.hq.core.character.AddCharacter
+import eve.hq.core.character.CharacterRepository
+import eve.hq.core.character.EveCharacter
+import eve.hq.core.character.ListCharacters
+import eve.hq.core.character.MarkCharacterInvalid
+import eve.hq.core.character.RemoveCharacter
+import eve.hq.core.character.SsoAuthenticator
+import eve.hq.data.JooqCharacterRepository
+import eve.hq.data.Migrations
+import org.h2.jdbcx.JdbcDataSource
+import org.jdbscript.JDBEngine
+import java.util.UUID
+
+/**
+ * The system under test for features: real use cases from `core`, a real in-memory H2 with the real
+ * migrations and the real repository. Only the SSO boundary is faked. Each instance gets its own database.
+ */
+class FeatureSystem {
+    private val dataSource = JdbcDataSource().apply {
+        setURL("jdbc:h2:mem:${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
+    }.also(Migrations::migrate)
+
+    private val engine = JDBEngine.builder(ICharactersSchema::class.java).dataSource(dataSource).build()
+
+    val sso = FakeSso()
+    private val repository: CharacterRepository = JooqCharacterRepository(dataSource)
+
+    /** Sets up the database state (replacing whatever is there). */
+    fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
+
+    fun listCharacters(): List<EveCharacter> = ListCharacters(repository)()
+    suspend fun addCharacter(): EveCharacter = AddCharacter(sso, repository)()
+    fun markInvalid(id: Long, reason: String) = MarkCharacterInvalid(repository)(id, reason)
+    fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
+}
+
+/** Fake of the real boundary: a login that returns whatever the scenario says. */
+class FakeSso : SsoAuthenticator {
+    var next: () -> EveCharacter = { error("no login scripted") }
+
+    override suspend fun login(): EveCharacter = next()
+}
