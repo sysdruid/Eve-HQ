@@ -1,14 +1,18 @@
 package eve.hq.data.esi
 
 import eve.hq.core.asset.AssetAccessDenied
+import eve.hq.core.asset.AssetCache
 import eve.hq.core.asset.AssetItem
 import eve.hq.core.asset.AssetLocation
+import eve.hq.core.asset.AssetSnapshot
 import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
+import eve.hq.core.asset.CachedAssetPage
 import eve.hq.core.character.EveCharacter
 import eve.hq.data.StaticTypeNameRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.header
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -16,6 +20,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
@@ -23,24 +28,33 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.IOException
+import java.time.Clock
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 class EveAssetSource(
     private val http: HttpClient,
     baseUrl: String = "https://esi.evetech.net/latest/",
     private val staticTypeNames: StaticTypeNameRepository? = null,
+    private val assetCache: AssetCache? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) : AssetSource {
     private val baseUrl = "${baseUrl.trimEnd('/')}/"
     private val json = Json { ignoreUnknownKeys = true }
 
+    override fun cachedSnapshot(characterId: Long) = assetCache?.findSnapshot(characterId)
+
     override suspend fun load(character: EveCharacter): List<AssetItem> {
-        val assets = loadPages(character)
+        val loadedPages = loadPages(character)
+        val assets = loadedPages.assets
         val typeIds = assets.map(EsiAsset::typeId).distinct()
         val staticNames = staticTypeNames?.findNames(typeIds).orEmpty()
         val typeNames = loadTypeNames(typeIds.filterNot(staticNames::containsKey)) + staticNames
         val itemNames = loadItemNames(character, assets.map(EsiAsset::itemId))
         val locationNames = loadLocationNames(character, assets)
         val itemIds = assets.mapTo(mutableSetOf(), EsiAsset::itemId)
-        return assets.map { asset ->
+        val items = assets.map { asset ->
             AssetItem(
                 itemId = asset.itemId,
                 type = AssetType(asset.typeId, typeNames[asset.typeId]),
@@ -52,23 +66,62 @@ class EveAssetSource(
                 ),
             )
         }
+        assetCache?.replace(character.id, AssetSnapshot(items, clock.instant()), loadedPages.pages)
+        return items
     }
 
-    private suspend fun loadPages(character: EveCharacter): List<EsiAsset> {
+    private suspend fun loadPages(character: EveCharacter): LoadedAssetPages {
         val assets = mutableListOf<EsiAsset>()
+        val pages = mutableListOf<CachedAssetPage>()
         var pageCount = 1
         var page = 1
         while (page <= pageCount) {
-            val response = http.get(url("characters/${character.id}/assets/")) {
-                bearerAuth(character.token.accessToken)
-                parameter("page", page)
+            val cached = assetCache?.findPage(character.id, page)
+            val cachedIsFresh = cached?.expiresAt?.isAfter(clock.instant()) == true
+            val body: String
+            val etag: String?
+            val expiresAt: Instant?
+            if (cachedIsFresh) {
+                body = cached.body
+                etag = cached.etag
+                expiresAt = cached.expiresAt
+                if (page == 1) pageCount = cached.pageCount
+            } else {
+                val response = http.get(url("characters/${character.id}/assets/")) {
+                    bearerAuth(character.token.accessToken)
+                    parameter("page", page)
+                    cached?.etag?.let { header(HttpHeaders.IfNoneMatch, it) }
+                }
+                when (response.status) {
+                    HttpStatusCode.NotModified -> {
+                        if (cached == null) throw EsiRequestFailed("character assets", response.status.value, "")
+                        body = cached.body
+                        etag = response.headers[HttpHeaders.ETag] ?: cached.etag
+                        expiresAt = response.expiresAt()
+                        if (page == 1) {
+                            pageCount = response.pageCount() ?: cached.pageCount
+                        }
+                    }
+
+                    else -> {
+                        body = response.bodyFor("character assets", requiresAssetScope = true)
+                        etag = response.headers[HttpHeaders.ETag]
+                        expiresAt = response.expiresAt()
+                        if (page == 1) pageCount = response.pageCount() ?: cached?.pageCount ?: 1
+                    }
+                }
             }
-            val body = response.bodyFor("character assets", requiresAssetScope = true)
-            if (page == 1) pageCount = response.headers["X-Pages"]?.toIntOrNull() ?: 1
             assets += json.decodeFromString<List<EsiAsset>>(body)
+            pages += CachedAssetPage(page, body, etag, expiresAt, pageCount)
             page++
         }
-        return assets
+        return LoadedAssetPages(assets, pages)
+    }
+
+    private fun HttpResponse.pageCount() = headers["X-Pages"]?.toIntOrNull()?.takeIf { it > 0 }
+
+    private fun HttpResponse.expiresAt(): Instant? = headers[HttpHeaders.Expires]?.let { value ->
+        runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }.getOrNull()
     }
 
     private suspend fun loadTypeNames(typeIds: List<Long>): Map<Long, String> = typeIds.chunked(LOOKUP_BATCH_SIZE)
@@ -185,6 +238,8 @@ class EveAssetSource(
 
     @Serializable
     private data class EsiLocation(val name: String)
+
+    private data class LoadedAssetPages(val assets: List<EsiAsset>, val pages: List<CachedAssetPage>)
 
     companion object {
         private const val LOOKUP_BATCH_SIZE = 1000

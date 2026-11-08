@@ -39,6 +39,9 @@ fun AssetsScreen(viewModel: AssetsViewModel) {
             Text("Loading assets…")
             LinearProgressIndicator(Modifier.fillMaxWidth())
         }
+        state.snapshots.forEach { snapshot ->
+            Text("${snapshot.characterName}: inventory updated ${snapshot.updatedAt}")
+        }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         state.failures.forEach { failure ->
             Text("${failure.characterName}: ${failure.message}", color = MaterialTheme.colorScheme.error)

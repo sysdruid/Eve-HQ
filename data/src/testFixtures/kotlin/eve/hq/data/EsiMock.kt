@@ -11,6 +11,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
+import org.assertj.core.api.Assertions.assertThat
 
 class EsiMock(configure: EsiMock.() -> Unit) {
     private val responses = mutableMapOf<Route, (EsiRequest) -> EsiResponse>()
@@ -19,6 +20,34 @@ class EsiMock(configure: EsiMock.() -> Unit) {
     val baseUrl = "https://esi.test/latest/"
     val requests: List<EsiRequest>
         get() = capturedRequests.toList()
+
+    fun assertNoRequest(predicate: (EsiRequest) -> Boolean) {
+        assertRequests(predicate, "No ESI request should match the predicate", expected = false)
+    }
+
+    fun assertAnyRequest(predicate: (EsiRequest) -> Boolean) {
+        assertRequests(predicate, "Expected an ESI request matching the predicate", expected = true)
+    }
+
+    private fun assertRequests(
+        predicate: (EsiRequest) -> Boolean,
+        expectation: String,
+        expected: Boolean,
+    ) {
+        val matchingRequests = capturedRequests.filter(predicate).map(::requestSummary)
+        val capturedSummaries = capturedRequests.map(::requestSummary)
+        val description = "$expectation; captured ESI requests (method, path, page only): $capturedSummaries"
+        if (expected) {
+            assertThat(matchingRequests).describedAs(description).isNotEmpty()
+        } else {
+            assertThat(matchingRequests).describedAs(description).isEmpty()
+        }
+    }
+
+    private fun requestSummary(request: EsiRequest): String = buildString {
+        append(request.method.value).append(' ').append(request.path)
+        request.queryParameters["page"]?.toIntOrNull()?.let { append(" page=").append(it) }
+    }
 
     init {
         configure()
@@ -65,6 +94,38 @@ class EsiMock(configure: EsiMock.() -> Unit) {
         private val page: Int? = null,
     ) {
         fun page(number: Int) = Endpoint(method, path, number)
+
+        fun assertRequested() {
+            assertRequests(::matches, "Expected ESI endpoint ${endpointSummary()}", expected = true)
+        }
+
+        fun assertNotRequested() {
+            assertRequests(::matches, "ESI endpoint ${endpointSummary()} should not have been requested", expected = false)
+        }
+
+        fun assertPagesRequested(vararg expectedPages: Int) {
+            val pageRequests = capturedRequests.filter { it.method == method && it.path == path }
+            val actualPages = pageRequests.map(::pageSummary)
+            val expectedSequence = expectedPages.map(Int::toString)
+            val description = "Expected ESI endpoint ${endpointSummary()} page sequence $expectedSequence; " +
+                "captured page sequence: $actualPages"
+
+            assertThat(actualPages).describedAs(description).containsExactlyElementsOf(expectedSequence)
+        }
+
+        private fun matches(request: EsiRequest): Boolean =
+            request.method == method && request.path == path &&
+                (page == null || request.queryParameters["page"]?.toIntOrNull() == page)
+
+        private fun pageSummary(request: EsiRequest): String = when {
+            "page" !in request.queryParameters -> "<missing>"
+            else -> request.queryParameters["page"]?.toIntOrNull()?.toString() ?: "<invalid>"
+        }
+
+        private fun endpointSummary(): String = buildString {
+            append(method.value).append(' ').append(path)
+            page?.let { append(" page=").append(it) }
+        }
 
         fun willReturn(
             body: String,

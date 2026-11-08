@@ -2,6 +2,7 @@ package eve.hq.features
 
 import eve.hq.core.character.CharacterStatus
 import eve.hq.features.support.FeatureSystem
+import org.assertj.core.api.Assertions.assertThat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -12,7 +13,7 @@ class ListCharactersFeatureTest {
     fun `given no characters, the list is empty`() {
         system.given { }
 
-        assertEquals(emptyList(), system.listCharacters())
+        assertThat(system.listCharacters()).isEmpty()
     }
 
     @Test

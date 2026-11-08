@@ -10,9 +10,13 @@ import androidx.compose.ui.window.application
 import eve.hq.data.DataDir
 import eve.hq.data.FileDatabase
 import eve.hq.data.Platform
+import eve.hq.data.StaticDataDownloadResult
 import eve.hq.data.StaticDataImporter
+import eve.hq.data.downloadStaticData
 import java.nio.file.Path
 import java.time.Clock
+
+internal const val LATEST_SDE_URL = "https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip"
 
 fun main(args: Array<String>) {
     val dataDir = DataDir.open(Platform.current())
@@ -30,13 +34,26 @@ fun main(args: Array<String>) {
     }
 }
 
-internal fun runCommand(args: Array<String>, dataDir: Path): Boolean {
+internal fun runCommand(
+    args: Array<String>,
+    dataDir: Path,
+    latestUrl: String = LATEST_SDE_URL,
+): Boolean {
     if (args.isEmpty()) return false
-    require(args.size == 2 && args[0] == "import-static-data") {
-        "Usage: import-static-data <sde-jsonl.zip>"
+    require(args.size <= 2 && args[0] == "import-static-data") {
+        "Usage: import-static-data [sde-jsonl.zip or URL]"
     }
     val database = FileDatabase.open(dataDir, Clock.systemUTC())
-    StaticDataImporter(database.dataSource).importArchive(Path.of(args[1]))
-    println("Imported static data from ${args[1]}")
+    val importer = StaticDataImporter(database.dataSource)
+    val source = args.getOrNull(1) ?: latestUrl
+    if (source.startsWith("https://") || source.startsWith("http://")) {
+        when (downloadStaticData(source, dataDir, importer)) {
+            StaticDataDownloadResult.IMPORTED -> println("Imported static data from $source")
+            StaticDataDownloadResult.NOT_MODIFIED -> println("Static data is already up to date")
+        }
+    } else {
+        importer.importArchive(Path.of(source))
+        println("Imported static data from $source")
+    }
     return true
 }

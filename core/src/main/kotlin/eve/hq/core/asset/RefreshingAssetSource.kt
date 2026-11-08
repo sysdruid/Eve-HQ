@@ -12,6 +12,8 @@ class RefreshingAssetSource(
     private val clock: Clock,
     private val delegate: AssetSource,
 ) : AssetSource {
+    override fun cachedSnapshot(characterId: Long) = delegate.cachedSnapshot(characterId)
+
     override suspend fun load(character: EveCharacter): List<AssetItem> {
         var current = repository.find(character.id) ?: error("Character ${character.name} no longer exists")
         if (current.status is CharacterStatus.Invalid) throw needsLogin()

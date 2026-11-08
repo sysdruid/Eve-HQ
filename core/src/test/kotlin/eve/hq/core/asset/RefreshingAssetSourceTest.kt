@@ -61,6 +61,31 @@ class RefreshingAssetSourceTest {
         assertTrue(repository.find(1)?.status is CharacterStatus.Invalid)
     }
 
+    @Test
+    fun `cached snapshots are forwarded without refreshing character credentials`() {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val character = EveCharacter(1, "Alice", AuthToken("old-access", "refresh", now.minusSeconds(1)))
+        val repository = MemoryCharacterRepository(character)
+        val snapshot = AssetSnapshot(
+            listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita"))),
+            now,
+        )
+        val delegate = object : AssetSource {
+            override suspend fun load(character: EveCharacter): List<AssetItem> = error("asset request must not run")
+            override fun cachedSnapshot(characterId: Long): AssetSnapshot = snapshot
+        }
+        val source = RefreshingAssetSource(
+            repository,
+            RefreshCharacterToken(repository, object : TokenRefresher {
+                override suspend fun refresh(refreshToken: String): AuthToken = error("token must not be refreshed")
+            }),
+            Clock.fixed(now, ZoneOffset.UTC),
+            delegate,
+        )
+
+        assertEquals(snapshot, source.cachedSnapshot(1))
+    }
+
     private class MemoryCharacterRepository(character: EveCharacter) : CharacterRepository {
         private val characters = mutableMapOf(character.id to character)
 

@@ -5,7 +5,6 @@ import org.jdbscript.JDBEngine
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class MigrationsTest {
     private val dataSource = JdbcDataSource().apply {
@@ -14,27 +13,6 @@ class MigrationsTest {
 
     private fun <T> query(sql: String, read: (java.sql.ResultSet) -> T): T =
         dataSource.connection.use { c -> c.createStatement().executeQuery(sql).use(read) }
-
-    @Test
-    fun `migrations apply to an empty database and create the characters table`() {
-        Migrations.migrate(dataSource)
-
-        val tables = query("select table_name from information_schema.tables where table_schema = 'PUBLIC'") { rs ->
-            buildList { while (rs.next()) add(rs.getString(1)) }
-        }
-        assertTrue("CHARACTERS" in tables, "tables: $tables")
-    }
-
-    @Test
-    fun `migrations create static type hierarchy tables`() {
-        Migrations.migrate(dataSource)
-
-        val tables = query("select table_name from information_schema.tables where table_schema = 'PUBLIC'") { rs ->
-            buildSet { while (rs.next()) add(rs.getString(1)) }
-        }
-
-        assertTrue(setOf("CATEGORIES", "GROUPS", "TYPES").all(tables::contains), "tables: $tables")
-    }
 
     // Regression guard: H2 2.4.240 broke inserts into tables with a CHECK constraint once the connection
     // that created the table (the migration connection) had closed.

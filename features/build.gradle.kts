@@ -7,8 +7,10 @@ plugins {
 dependencies {
     testImplementation(project(":core"))
     testImplementation(project(":data"))
+    testImplementation(testFixtures(project(":data")))
     testImplementation(libs.kotlinx.coroutines)
     testImplementation(libs.jdbscript)
     testImplementation(libs.h2)
     testImplementation(libs.flyway.core)
+    testImplementation(libs.assertj.core)
 }

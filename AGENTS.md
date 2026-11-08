@@ -23,6 +23,8 @@ The working plan is kept in a local, untracked `TESTLIST.md` (the `tdd` skill cr
 
 For guidance on extending static-data imports, see [docs/static-data-import.md](docs/static-data-import.md).
 
+- **Migration tests.** Cover complex data migrations and concrete database regressions, not Flyway's basic table creation.
+
 ## Additional rules
 
 - **Review readability.** After tests pass, review the production code and tests touched by the task;

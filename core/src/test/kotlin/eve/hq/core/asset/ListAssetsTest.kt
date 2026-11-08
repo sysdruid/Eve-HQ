@@ -2,10 +2,11 @@ package eve.hq.core.asset
 
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
-import java.time.Instant
+import org.assertj.core.api.Assertions.assertThat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -84,8 +85,9 @@ class ListAssetsTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(2, result.items.size)
-        assertEquals(setOf("Location 700", "Location 701"), result.items.map { it.stationName }.toSet())
+        assertThat(result.items.map { it.stationName })
+            .containsExactlyInAnyOrder("Location 700", "Location 701")
+        Unit
     }
 
     @Test
@@ -100,8 +102,8 @@ class ListAssetsTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(2, result.items.size)
-        assertEquals(setOf("Location 500", "Location 600"), result.items.map { it.stationName }.toSet())
+        assertThat(result.items.map { it.stationName })
+            .containsExactlyInAnyOrder("Location 500", "Location 600")
         assertEquals(4, result.items.single { it.typeName == "Tritanium" }.quantity)
     }
 
@@ -147,6 +149,24 @@ class ListAssetsTest {
         val result = ListAssets(source)(listOf(alice, bob))
 
         assertEquals(listOf("Bob"), result.items.map { it.characterName })
+        assertEquals(listOf(AssetLoadFailure(1, "Alice", "ESI unavailable")), result.failures)
+    }
+
+    @Test
+    fun `a failed refresh returns the saved snapshot alongside its failure`() = runBlocking {
+        val character = EveCharacter(1, "Alice", AuthToken("access", "refresh", Instant.MAX))
+        val cached = AssetSnapshot(
+            listOf(assetItem(701, 34, "Tritanium", 42, 600, "Jita Station")),
+            Instant.parse("2026-11-08T12:00:00Z"),
+        )
+        val source = object : AssetSource {
+            override suspend fun load(character: EveCharacter): List<AssetItem> = error("ESI unavailable")
+            override fun cachedSnapshot(characterId: Long): AssetSnapshot = cached
+        }
+
+        val result = ListAssets(source)(listOf(character))
+
+        assertEquals(listOf("Tritanium"), result.items.map { it.typeName })
         assertEquals(listOf(AssetLoadFailure(1, "Alice", "ESI unavailable")), result.failures)
     }
 

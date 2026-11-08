@@ -1,6 +1,10 @@
 package eve.hq.features.support
 
+import eve.hq.core.asset.AssetListing
+import eve.hq.core.asset.ListAssets
+import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.character.AddCharacter
+import eve.hq.core.character.AuthToken
 import eve.hq.core.character.CharacterRepository
 import eve.hq.core.character.EveCharacter
 import eve.hq.core.character.ListCharacters
@@ -8,19 +12,25 @@ import eve.hq.core.character.MarkCharacterInvalid
 import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
 import eve.hq.core.character.SsoAuthenticator
-import eve.hq.core.character.AuthToken
 import eve.hq.core.character.TokenRefresher
+import eve.hq.data.EsiMock
+import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.Migrations
+import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
+import eve.hq.data.esi.EveAssetSource
 import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
 import java.security.SecureRandom
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
  * The system under test for features: real use cases from `core`, a real in-memory H2 with the real
- * migrations and the real repository. Only the SSO boundary is faked. Each instance gets its own database.
+ * migrations and repositories. SSO and ESI are mocked only at their external boundaries. Each instance gets its own database.
  */
 class FeatureSystem {
     private val dataSource = JdbcDataSource().apply {
@@ -31,15 +41,44 @@ class FeatureSystem {
 
     val sso = FakeSso()
     val refresher = FakeTokenRefresher()
-    private val repository: CharacterRepository = JooqCharacterRepository(dataSource, TokenCipher(ByteArray(32).also(SecureRandom()::nextBytes)))
+    private val repository: CharacterRepository = JooqCharacterRepository(
+        dataSource,
+        TokenCipher(ByteArray(32).also(SecureRandom()::nextBytes)),
+    )
+    val esi = EsiMock { }
+    val now: Instant = Instant.parse("2026-11-08T12:00:00Z")
+    private val clock = Clock.fixed(now, ZoneOffset.UTC)
+    private var assets = newAssetList()
 
     fun given(block: ICharactersSchema.() -> Unit) = engine.reset(block)
 
     fun listCharacters(): List<EveCharacter> = ListCharacters(repository)()
+    suspend fun listAssets(): AssetListing = assets(listCharacters())
+    fun cachedAssets(): AssetListing = assets.cached(listCharacters())
+    fun reopenAssetServices() {
+        assets = newAssetList()
+    }
     suspend fun addCharacter(): EveCharacter = AddCharacter(sso, repository)()
     fun markInvalid(id: Long, reason: String) = MarkCharacterInvalid(repository)(id, reason)
     fun removeCharacter(id: Long) = RemoveCharacter(repository)(id)
     suspend fun refreshToken(id: Long) = RefreshCharacterToken(repository, refresher)(id)
+
+    private fun newAssetList(): ListAssets {
+        val source = EveAssetSource(
+            http = esi.client,
+            baseUrl = esi.baseUrl,
+            staticTypeNames = StaticTypeNameRepository(dataSource),
+            assetCache = JooqAssetCacheRepository(dataSource),
+            clock = clock,
+        )
+        val refreshingSource = RefreshingAssetSource(
+            repository,
+            RefreshCharacterToken(repository, refresher),
+            clock,
+            source,
+        )
+        return ListAssets(refreshingSource)
+    }
 }
 
 class FakeSso : SsoAuthenticator {

@@ -7,6 +7,7 @@ import eve.hq.features.support.aToken
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import java.io.IOException
+import org.assertj.core.api.Assertions.assertThat
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -73,6 +74,6 @@ class RefreshCharacterTokenFeatureTest {
 
         system.refreshToken(id = 42)
 
-        assertEquals(emptyList(), system.listCharacters())
+        assertThat(system.listCharacters()).isEmpty()
     }
 }

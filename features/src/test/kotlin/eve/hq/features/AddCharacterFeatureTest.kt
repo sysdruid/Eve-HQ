@@ -6,6 +6,7 @@ import eve.hq.features.support.FeatureSystem
 import eve.hq.features.support.aCharacter
 import eve.hq.features.support.aToken
 import kotlinx.coroutines.runBlocking
+import org.assertj.core.api.Assertions.assertThat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -72,7 +73,7 @@ class AddCharacterFeatureTest {
 
         assertFailsWith<LoginFailed> { system.addCharacter() }
 
-        assertEquals(emptyList(), system.listCharacters())
+        assertThat(system.listCharacters()).isEmpty()
     }
 
     @Test

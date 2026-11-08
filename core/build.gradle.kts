@@ -5,4 +5,5 @@ plugins {
 
 dependencies {
     implementation(libs.kotlinx.coroutines)
+    testImplementation(libs.assertj.core)
 }

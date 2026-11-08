@@ -2,6 +2,7 @@ package eve.hq.app.assets
 
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.asset.AssetRow
+import eve.hq.core.asset.AssetSnapshotInfo
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.SearchAssets
 import eve.hq.core.character.ListCharacters
@@ -20,6 +21,7 @@ data class AssetsUiState(
     val query: String = "",
     val items: List<AssetRow> = emptyList(),
     val failures: List<AssetLoadFailure> = emptyList(),
+    val snapshots: List<AssetSnapshotInfo> = emptyList(),
     val error: String? = null,
 )
 
@@ -48,10 +50,25 @@ class AssetsViewModel(
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
-                val listing = withContext(io) { listAssets(listCharacters()) }
-                allItems = listing.items
+                val characters = withContext(io) { listCharacters() }
+                val cached = withContext(io) { listAssets.cached(characters) }
+                if (cached.snapshots.isNotEmpty()) {
+                    allItems = cached.items
+                    _state.update { it.copy(items = searchAssets(allItems, it.query), snapshots = cached.snapshots) }
+                }
+                val listing = withContext(io) { listAssets(characters) }
+                val failedCharacters = listing.failures.mapTo(mutableSetOf(), AssetLoadFailure::characterName)
+                val returnedCharacters = listing.items.mapTo(mutableSetOf(), AssetRow::characterName)
+                allItems = listing.items + allItems.filter {
+                    it.characterName in failedCharacters && it.characterName !in returnedCharacters
+                }
                 _state.update {
-                    it.copy(loading = false, items = searchAssets(allItems, it.query), failures = listing.failures)
+                    it.copy(
+                        loading = false,
+                        items = searchAssets(allItems, it.query),
+                        failures = listing.failures,
+                        snapshots = listing.snapshots,
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e

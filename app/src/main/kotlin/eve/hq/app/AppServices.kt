@@ -10,6 +10,7 @@ import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
 import eve.hq.data.AppConfig
 import eve.hq.data.FileDatabase
+import eve.hq.data.JooqAssetCacheRepository
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
@@ -34,6 +35,7 @@ object AppServices {
         val clock = Clock.systemUTC()
         val database = FileDatabase.open(dataDir, clock)
         val repository = JooqCharacterRepository(database.dataSource, TokenCipher.loadOrCreate(dataDir))
+        val assetCache = JooqAssetCacheRepository(database.dataSource)
         val staticTypeNames = StaticTypeNameRepository(database.dataSource)
         val sso = SsoConfig(clientId = config.ssoClientId, scopes = config.ssoScopes)
         val authenticator = EveSsoAuthenticator.create(sso, BrowserLauncher::open)
@@ -53,7 +55,7 @@ object AppServices {
                 repository,
                 RefreshCharacterToken(repository, refresher),
                 clock,
-                EveAssetSource(http, staticTypeNames = staticTypeNames),
+                EveAssetSource(http, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock),
             )
             AssetsViewModel(listCharacters, ListAssets(source), scope, Dispatchers.IO)
         }

@@ -2,6 +2,7 @@ package eve.hq.data
 
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
+import org.assertj.core.api.Assertions.assertThat
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
@@ -92,7 +93,7 @@ class FileDatabaseTest {
     fun `given a new database, no backup is made`(@TempDir dir: Path) {
         FileDatabase.open(dir, clock)
 
-        assertEquals(emptyList(), backups(dir))
+        assertThat(backups(dir)).isEmpty()
     }
 
     @Test
@@ -101,7 +102,7 @@ class FileDatabaseTest {
 
         FileDatabase.open(dir, clock)
 
-        assertEquals(emptyList(), backups(dir))
+        assertThat(backups(dir)).isEmpty()
     }
 
     @Test

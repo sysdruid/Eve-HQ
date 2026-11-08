@@ -3,6 +3,7 @@ package eve.hq.app.assets
 import eve.hq.app.characters.AppSystem
 import eve.hq.core.asset.AssetItem
 import eve.hq.core.asset.AssetLocation
+import eve.hq.core.asset.AssetSnapshot
 import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
 import eve.hq.core.asset.ListAssets
@@ -11,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -40,6 +42,56 @@ class AssetsViewModelTest {
 
         assertFalse(viewModel.state.value.loading)
         assertEquals(listOf("Tritanium"), viewModel.state.value.items.map { it.typeName })
+    }
+
+    @Test
+    fun `saved assets are visible while the network refresh is pending`() {
+        system.store(1, "Alice")
+        val snapshot = AssetSnapshot(
+            listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita"))),
+            Instant.parse("2026-11-08T12:00:00Z"),
+        )
+        val pending = CompletableDeferred<List<AssetItem>>()
+        val source = object : AssetSource {
+            override suspend fun load(character: eve.hq.core.character.EveCharacter): List<AssetItem> = pending.await()
+            override fun cachedSnapshot(characterId: Long): AssetSnapshot = snapshot
+        }
+        val viewModel = AssetsViewModel(
+            ListCharacters(system.repository),
+            ListAssets(source),
+            scope,
+            dispatcher,
+        )
+
+        assertTrue(viewModel.state.value.loading)
+        assertEquals(listOf("Tritanium"), viewModel.state.value.items.map { it.typeName })
+        assertEquals(snapshot.updatedAt, viewModel.state.value.snapshots.single().updatedAt)
+    }
+
+    @Test
+    fun `a cached inventory remains visible with its timestamp when refresh fails`() {
+        system.store(1, "Alice")
+        val snapshot = AssetSnapshot(
+            listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita"))),
+            Instant.parse("2026-11-08T12:00:00Z"),
+        )
+        val source = object : AssetSource {
+            override suspend fun load(character: eve.hq.core.character.EveCharacter): List<AssetItem> =
+                error("ESI unavailable")
+
+            override fun cachedSnapshot(characterId: Long): AssetSnapshot = snapshot
+        }
+
+        val viewModel = AssetsViewModel(
+            ListCharacters(system.repository),
+            ListAssets(source),
+            scope,
+            dispatcher,
+        )
+
+        assertEquals(listOf("Tritanium"), viewModel.state.value.items.map { it.typeName })
+        assertEquals(snapshot.updatedAt, viewModel.state.value.snapshots.single().updatedAt)
+        assertEquals("ESI unavailable", viewModel.state.value.failures.single().message)
     }
 
     @Test
@@ -92,5 +144,22 @@ class AssetsViewModelTest {
         assertEquals(listOf("Bob"), viewModel.state.value.items.map { it.characterName })
         assertEquals("Alice", viewModel.state.value.failures.single().characterName)
         assertEquals("Please log in again", viewModel.state.value.failures.single().message)
+    }
+
+    @Test
+    fun `a failed refresh keeps previously displayed asset rows`() {
+        system.store(1, "Alice")
+        var fail = false
+        val source = AssetSource {
+            if (fail) error("ESI unavailable")
+            listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 42, AssetLocation(600, "Jita")))
+        }
+        val viewModel = AssetsViewModel(ListCharacters(system.repository), ListAssets(source), scope, dispatcher)
+        fail = true
+
+        viewModel.refresh()
+
+        assertEquals(listOf("Tritanium"), viewModel.state.value.items.map { it.typeName })
+        assertEquals("ESI unavailable", viewModel.state.value.failures.single().message)
     }
 }

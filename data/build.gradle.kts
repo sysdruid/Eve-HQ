@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.jooq.codegen)
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -16,6 +17,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.jdbscript)
+    testImplementation(libs.assertj.core)
+    testFixturesApi(libs.ktor.client.mock)
+    testFixturesImplementation(libs.assertj.core)
 
     // Generates jOOQ classes straight from the Flyway migration scripts (no live database needed),
     // so the migrations stay the single source of truth for the schema.

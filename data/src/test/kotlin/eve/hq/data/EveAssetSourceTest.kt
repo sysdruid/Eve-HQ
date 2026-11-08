@@ -2,7 +2,11 @@ package eve.hq.data
 
 import eve.hq.core.asset.AssetItem
 import eve.hq.core.asset.AssetLocation
+import eve.hq.core.asset.AssetCache
+import eve.hq.core.asset.AssetSnapshot
 import eve.hq.core.asset.AssetType
+import eve.hq.core.asset.CachedAssetPage
+import eve.hq.core.asset.AssetListing
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
@@ -11,16 +15,239 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import org.assertj.core.api.Assertions.assertThat
 import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
 import java.io.IOException
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class EveAssetSourceTest {
+    @Test
+    fun `unexpired asset pages are reused while type names are looked up independently`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val cache = MemoryAssetCache(
+            CachedAssetPage(1, body, "\"assets-v1\"", now.plusSeconds(3600), 1),
+        )
+        val esi = EsiMock {
+            characterAssets(123).willReturn(
+                body,
+                headers = mapOf(HttpHeaders.ETag to "\"assets-v1\"", HttpHeaders.Expires to "Sun, 08 Nov 2026 13:00:00 GMT"),
+            )
+            universeNames().willReturn("""[{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        val result = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertEquals("Tritanium", result.single().type.name)
+        esi.characterAssets(123).assertNotRequested()
+        esi.universeNames().assertRequested()
+    }
+
+    @Test
+    fun `expired asset pages send their etag and reuse the saved body on not modified`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val cache = MemoryAssetCache(CachedAssetPage(1, body, "\"assets-v1\"", now.minusSeconds(1), 1))
+        val esi = EsiMock {
+            characterAssets(123).willRespond { request ->
+                assertEquals("\"assets-v1\"", request.headers[HttpHeaders.IfNoneMatch])
+                EsiMock.EsiResponse(
+                    body = "",
+                    status = HttpStatusCode.NotModified,
+                    headers = mapOf(HttpHeaders.Expires to "Sun, 08 Nov 2026 13:00:00 GMT"),
+                )
+            }
+            universeNames().willReturn("""[{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        val result = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertEquals("Tritanium", result.single().type.name)
+        assertEquals(body, cache.findPage(123, 1)?.body)
+        assertEquals("\"assets-v1\"", cache.findPage(123, 1)?.etag)
+        assertEquals(now.plusSeconds(3600), cache.findPage(123, 1)?.expiresAt)
+        assertEquals(now, cache.findSnapshot(123)?.updatedAt)
+    }
+
+    @Test
+    fun `each page uses its own expiry and validator`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val firstBody = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val secondBody = """[{"item_id":102,"type_id":35,"quantity":2,"location_id":60000001,"location_type":"station"}]"""
+        val firstPage = CachedAssetPage(1, firstBody, "\"page-1\"", now.plusSeconds(600), 2)
+        val secondPage = CachedAssetPage(2, secondBody, "\"page-2\"", now.minusSeconds(1), 2)
+        val cache = MemoryAssetCache().apply {
+            replace(123, AssetSnapshot(emptyList(), now.minusSeconds(100)), listOf(firstPage, secondPage))
+        }
+        val esi = EsiMock {
+            characterAssets(123).page(2).willRespond { request ->
+                assertEquals("\"page-2\"", request.headers[HttpHeaders.IfNoneMatch])
+                EsiMock.EsiResponse(
+                    "",
+                    HttpStatusCode.NotModified,
+                    mapOf(HttpHeaders.Expires to "Sun, 08 Nov 2026 13:00:00 GMT"),
+                )
+            }
+            universeNames().willReturn("""[{"id":34,"name":"Tritanium"},{"id":35,"name":"Pyerite"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        val result = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertEquals(setOf(101L, 102L), result.map { it.itemId }.toSet())
+        assertEquals(listOf("2"), esi.requests.mapNotNull { it.queryParameters["page"] })
+        assertEquals(now.plusSeconds(3600), cache.findPage(123, 2)?.expiresAt)
+    }
+
+    @Test
+    fun `pages without expiry are revalidated on every load`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val cache = MemoryAssetCache(CachedAssetPage(1, body, "\"assets-v1\"", null, 1))
+        val requestedEtags = mutableListOf<String?>()
+        val esi = EsiMock {
+            characterAssets(123).willRespond { request ->
+                requestedEtags += request.headers[HttpHeaders.IfNoneMatch]
+                EsiMock.EsiResponse(body, headers = mapOf(HttpHeaders.ETag to "\"assets-v2\""))
+            }
+            universeNames().willReturn("""[{"id":34,"name":"Tritanium"}]""")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Jita"}""")
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+        val character = EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX))
+
+        source.load(character)
+        source.load(character)
+
+        assertEquals(listOf<String?>("\"assets-v1\"", "\"assets-v2\""), requestedEtags)
+        assertNull(cache.findPage(123, 1)?.expiresAt)
+    }
+
+    @Test
+    fun `not modified without a cached page is rejected`() = runBlocking {
+        val cache = MemoryAssetCache()
+        val esi = EsiMock {
+            characterAssets(123).willReturn("", HttpStatusCode.NotModified)
+        }
+        val source = EveAssetSource(esi.client, esi.baseUrl, assetCache = cache)
+
+        val error = assertFailsWith<Exception> {
+            source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+        }
+
+        assertEquals("ESI character assets answered 304: ", error.message)
+        assertNull(cache.findSnapshot(123))
+    }
+
+    @Test
+    fun `a later page failure preserves the previous snapshot and every cached page`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val oldPage1Body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val oldPage1 = CachedAssetPage(1, oldPage1Body, "\"old-page-1\"", now.minusSeconds(1), 2)
+        val oldPage2 = CachedAssetPage(2, "[]", "\"old-page-2\"", now.minusSeconds(1), 2)
+        val oldSnapshot = AssetSnapshot(
+            listOf(AssetItem(101, AssetType(34, "Old name"), null, 1, AssetLocation(60000001, "Old station"))),
+            now.minusSeconds(100),
+        )
+        val cache = MemoryAssetCache().apply { replace(123, oldSnapshot, listOf(oldPage1, oldPage2)) }
+        val esi = EsiMock {
+            characterAssets(123).page(1).willReturn(
+                """[{"item_id":202,"type_id":34,"quantity":2,"location_id":60000001,"location_type":"station"}]""",
+                headers = mapOf("X-Pages" to "2", HttpHeaders.ETag to "\"new-page-1\""),
+            )
+            characterAssets(123).page(2).willReturn("unavailable", HttpStatusCode.ServiceUnavailable)
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        assertFailsWith<Exception> {
+            source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+        }
+
+        assertEquals(oldSnapshot, cache.findSnapshot(123))
+        assertEquals(oldPage1, cache.findPage(123, 1))
+        assertEquals(oldPage2, cache.findPage(123, 2))
+    }
+
+    @Test
+    fun `a smaller page count removes obsolete pages and stores an empty snapshot`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val cache = MemoryAssetCache().apply {
+            replace(
+                123,
+                AssetSnapshot(
+                    listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 1, AssetLocation(60000001, "Jita"))),
+                    now.minusSeconds(100),
+                ),
+                listOf(
+                    CachedAssetPage(1, "[]", "\"old-page-1\"", now.minusSeconds(1), 2),
+                    CachedAssetPage(2, "[]", "\"old-page-2\"", now.minusSeconds(1), 2),
+                ),
+            )
+        }
+        val esi = EsiMock {
+            characterAssets(123).page(1).willReturn(
+                "[]",
+                headers = mapOf("X-Pages" to "1", HttpHeaders.ETag to "\"new-page-1\""),
+            )
+        }
+        val source = EveAssetSource(
+            esi.client,
+            esi.baseUrl,
+            assetCache = cache,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        val result = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertThat(result).isEmpty()
+        assertNull(cache.findPage(123, 2))
+        assertThat(cache.findSnapshot(123)?.items).isEmpty()
+        assertEquals(listOf(1), esi.requests.mapNotNull { it.queryParameters["page"]?.toIntOrNull() })
+    }
+
     @Test
     fun `static names are used for known assets while ESI resolves unknown types`() = runBlocking {
         val dataSource = JdbcDataSource().apply {
@@ -121,10 +348,7 @@ class EveAssetSourceTest {
 
         val items = source.load(character)
 
-        assertEquals(
-            listOf("1", "2"),
-            esi.requests.filter { it.path.endsWith("/characters/123/assets/") }.map { it.queryParameters["page"] },
-        )
+        esi.characterAssets(123).assertPagesRequested(1, 2)
         assertEquals(listOf(101L, 102L), items.map { it.itemId })
     }
 
@@ -201,7 +425,8 @@ class EveAssetSourceTest {
         val result = ListAssets(source)(listOf(character))
 
         assertEquals("Bearer access", esi.requests.single().headers[HttpHeaders.Authorization])
-        assertTrue(result.failures.single().message.contains("re-authorize", ignoreCase = true))
+        assertThat(result.failures.single().message).containsIgnoringCase("re-authorize")
+        Unit
     }
 
     @Test
@@ -247,7 +472,7 @@ class EveAssetSourceTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         assertEquals(setOf("Tritanium", "Unknown type ($unknownType)"), result.items.map { it.typeName }.toSet())
     }
 
@@ -266,7 +491,7 @@ class EveAssetSourceTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         assertEquals("Unknown type (34)", result.items.single().typeName)
         assertEquals(7, result.items.single().quantity)
     }
@@ -288,7 +513,7 @@ class EveAssetSourceTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         assertEquals(setOf("Location 60000001", "Location $structureId"), result.items.map { it.stationName }.toSet())
     }
 
@@ -307,7 +532,7 @@ class EveAssetSourceTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         assertEquals("Secure Container", result.items.single { it.typeName == "Tritanium" }.containerPath)
     }
 
@@ -326,7 +551,7 @@ class EveAssetSourceTest {
 
         val result = ListAssets(source)(listOf(character))
 
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         val item = result.items.single { it.typeName == "Unknown type (34)" }
         assertEquals("Location 60000001", item.stationName)
         assertEquals("Unknown type (100)", item.containerPath)
@@ -350,8 +575,31 @@ class EveAssetSourceTest {
         val result = ListAssets(source)(listOf(character))
 
         assertEquals(100, result.items.size)
-        assertEquals(emptyList(), result.failures)
+        assertNoFailures(result)
         val nameRequests = esi.requests.count { it.path.endsWith("/universe/names/") }
         assertTrue(nameRequests <= 8, "Name lookup requests: $nameRequests")
+    }
+
+    private class MemoryAssetCache(initialPage: CachedAssetPage? = null) : AssetCache {
+        private val snapshots = mutableMapOf<Long, AssetSnapshot>()
+        private val pages = mutableMapOf<Pair<Long, Int>, CachedAssetPage>()
+
+        init {
+            initialPage?.let { pages[123L to it.page] = it }
+        }
+
+        override fun findSnapshot(characterId: Long): AssetSnapshot? = snapshots[characterId]
+
+        override fun findPage(characterId: Long, page: Int): CachedAssetPage? = pages[characterId to page]
+
+        override fun replace(characterId: Long, snapshot: AssetSnapshot, pages: List<CachedAssetPage>) {
+            snapshots[characterId] = snapshot
+            this.pages.keys.removeAll { it.first == characterId }
+            pages.forEach { this.pages[characterId to it.page] = it }
+        }
+    }
+
+    private fun assertNoFailures(result: AssetListing) {
+        assertThat(result.failures).isEmpty()
     }
 }

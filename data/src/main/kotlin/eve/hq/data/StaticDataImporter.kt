@@ -14,8 +14,24 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.sql.DataSource
 
+data class StaticDataValidators(val etag: String?, val lastModified: String?)
+
 class StaticDataImporter(private val dataSource: DataSource) {
-    fun importArchive(archive: Path) {
+    fun importArchive(archive: Path) = importArchive(archive, null, null)
+
+    fun importDownloadedArchive(archive: Path, source: String, validators: StaticDataValidators) =
+        importArchive(archive, source, validators)
+
+    fun validatorsFor(source: String): StaticDataValidators? = dataSource.connection.use { connection ->
+        connection.prepareStatement("select etag, last_modified from static_data_import where source = ?").use { statement ->
+            statement.setString(1, source)
+            statement.executeQuery().use { result ->
+                if (result.next()) StaticDataValidators(result.getString(1), result.getString(2)) else null
+            }
+        }
+    }
+
+    private fun importArchive(archive: Path, source: String?, validators: StaticDataValidators?) {
         ZipFile(archive.toFile(), StandardCharsets.UTF_8).use { zip ->
             val entries = REQUIRED_ENTRIES.associateWith { name ->
                 zip.getEntry(name)?.takeUnless(ZipEntry::isDirectory)
@@ -31,8 +47,22 @@ class StaticDataImporter(private val dataSource: DataSource) {
                     importCategories(zip, entries.getValue(CATEGORIES), connection)
                     importGroups(zip, entries.getValue(GROUPS), connection)
                     importTypes(zip, entries.getValue(TYPES), connection)
+                    replaceValidators(connection, source, validators)
                 }
             }
+        }
+    }
+
+    private fun replaceValidators(connection: Connection, source: String?, validators: StaticDataValidators?) {
+        connection.createStatement().use { it.executeUpdate("delete from static_data_import") }
+        if (source == null || validators == null) return
+        connection.prepareStatement(
+            "insert into static_data_import (source, etag, last_modified) values (?, ?, ?)",
+        ).use { statement ->
+            statement.setString(1, source)
+            statement.setString(2, validators.etag)
+            statement.setString(3, validators.lastModified)
+            statement.executeUpdate()
         }
     }
 
