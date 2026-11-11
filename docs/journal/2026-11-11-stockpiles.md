@@ -21,6 +21,11 @@
   on stdin hung a tool call for minutes.
 - The search field was first written with a constant empty value, so typed text never showed. Compose screens have no
   unit test here, so only a run of the app shows that kind of bug.
+- A second consumer exposed a latent race: the Assets and Stockpiles tabs loaded the same character at once, both
+  replaced its cached pages (delete, then insert) and the second hit a primary-key violation. The failure was only
+  visible because logging had just been added; the stack trace named the table and the character. Fix: loads are
+  serialised per character in the three refreshing sources, so the second caller finds a fresh cache.
+  Still open: token refresh can race the same way across the three sources.
 
 ### Article Hook
 - **Publication Takeaway:** Discussing the domain concept before coding removed a whole speculative module: the
