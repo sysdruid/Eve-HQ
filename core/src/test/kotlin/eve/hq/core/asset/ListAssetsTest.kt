@@ -46,6 +46,7 @@ class ListAssetsTest {
                         containerPath = "",
                         typeName = "Small Secure Container",
                         quantity = 1,
+                        typeId = 100,
                     ),
                     AssetRow(
                         characterName = "Alice",
@@ -53,6 +54,7 @@ class ListAssetsTest {
                         containerPath = "Small Secure Container",
                         typeName = "Tritanium",
                         quantity = 42,
+                        typeId = 34,
                     ),
                 ),
                 failures = emptyList(),

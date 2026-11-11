@@ -50,7 +50,7 @@ val MEDIUM_T2_HULLS = ReadinessConfig(
         "Absolution","Damnation", "Astarte", "Eos"
     ),
     cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
-    jobs = 4,
+    jobs = 2,
     blueprintTe = 4, // invented T2 copies come out at 2 to 4; the higher end errs towards more material on hand
 )
 

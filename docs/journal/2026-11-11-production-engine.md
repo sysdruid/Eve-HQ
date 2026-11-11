@@ -66,6 +66,10 @@
   nearly double what the old 1.4 gave. That also exposed a modelling slip: the probe gave every blueprint TE 20, but T2 hulls are built
   from freshly invented copies at 2 to 4. The hull's blueprint TE became a setting of the project, and the phases below keep using the
   blueprints actually owned. Every factor has to describe the job that will really run.
+- Icons and portraits come from EVE's image server and are cached on disk. The store works on bytes (testable with a mock
+  engine: one download for many rows, no repeat after a restart, missing icons remembered, failures retried), a decoder turns them
+  into bitmaps with a small LRU, and two composables draw them with a quiet placeholder. Rendering a screen offscreen to a PNG
+  made it possible to check the look without a display.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

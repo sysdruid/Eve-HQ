@@ -34,10 +34,14 @@ class EveImages(
 
     suspend fun typeIcon(typeId: Long, size: Int = 64): ByteArray? = fetch("types", typeId, size, "icon")
 
+    /** The icon with the blueprint (original) or blueprint copy overlay, as shown in the game. */
+    suspend fun blueprintIcon(typeId: Long, copy: Boolean, size: Int = 64): ByteArray? =
+        fetch("types", typeId, size, if (copy) "bpc" else "bp")
+
     suspend fun portrait(characterId: Long, size: Int = 64): ByteArray? = fetch("characters", characterId, size, "portrait")
 
     private suspend fun fetch(kind: String, id: Long, size: Int, picture: String): ByteArray? {
-        val key = "$kind/$id-$size"
+        val key = "$kind/$picture/$id-$size"
         if (key in noPicture) return null
         val file = cacheDir.resolve("$key.img")
         // Many rows show the same icon at once: only the first asks, the others wait for its answer.

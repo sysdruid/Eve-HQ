@@ -59,6 +59,7 @@ fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> U
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.lines) { line ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TypeIcon(line.key.item, size = 32.dp)
                     Text(statusLabel(line.status), color = statusColor(line.status), modifier = Modifier.padding(end = 4.dp))
                     // Clicking the name jumps to the assets of this item, to see where it is scattered.
                     Text(line.text, modifier = Modifier.weight(1f).clickable { onShowAssets(line.name) })
@@ -87,10 +88,20 @@ private fun StockpileFormPanel(form: StockpileForm, stations: List<AssetLocation
                 singleLine = true,
             )
             form.suggestions.forEach { suggestion ->
-                Text(suggestion.name, modifier = Modifier.fillMaxWidth().clickable { viewModel.chooseItem(suggestion) }.padding(4.dp))
+                Row(
+                    Modifier.fillMaxWidth().clickable { viewModel.chooseItem(suggestion) }.padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TypeIcon(suggestion.id, size = 32.dp)
+                    Text(suggestion.name)
+                }
             }
         } else {
-            Text(item.name, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TypeIcon(item.id, size = 32.dp)
+                Text(item.name, style = MaterialTheme.typography.titleMedium)
+            }
         }
         StationPicker(form.station, stations, viewModel::chooseStation)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

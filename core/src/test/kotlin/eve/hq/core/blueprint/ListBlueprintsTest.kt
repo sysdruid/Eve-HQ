@@ -43,8 +43,8 @@ class ListBlueprintsTest {
         val result = ListBlueprints(source, noJobs)(listOf(alice))
 
         assertThat(result.rows).containsExactly(
-            BlueprintRow(1001, "Alice", "Rifter Blueprint", BlueprintKind.Original, 10, 20, null, "Jita IV - Moon 4", null),
-            BlueprintRow(1002, "Alice", "Rifter Blueprint", BlueprintKind.Copy, 2, 4, 4, "Jita IV - Moon 4", null),
+            BlueprintRow(1001, "Alice", "Rifter Blueprint", BlueprintKind.Original, 10, 20, null, "Jita IV - Moon 4", null, 681),
+            BlueprintRow(1002, "Alice", "Rifter Blueprint", BlueprintKind.Copy, 2, 4, 4, "Jita IV - Moon 4", null, 681),
         )
         assertThat(result.failures).isEmpty()
     }

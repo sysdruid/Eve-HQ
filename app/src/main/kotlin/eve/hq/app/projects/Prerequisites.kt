@@ -5,7 +5,7 @@ import eve.hq.core.production.ItemDemand
 import eve.hq.core.production.StockpileStatus
 import java.util.Locale
 
-data class PrerequisiteLine(val text: String, val status: StockpileStatus)
+data class PrerequisiteLine(val text: String, val status: StockpileStatus, val item: Long)
 
 /** One item group of the prerequisites, with the EVE multibuy paste text for just that group. */
 data class PrerequisiteGroup(val name: String, val lines: List<PrerequisiteLine>, val multibuy: String)
@@ -27,6 +27,7 @@ internal fun groupPrerequisites(demands: List<ItemDemand>, catalog: ItemCatalog)
     fun line(demand: ItemDemand) = PrerequisiteLine(
         "${name(demand)}  need ${count(demand.required)}  on hand ${count(demand.onHand)}  short ${count(demand.deficit)}",
         demand.status,
+        demand.item,
     )
 
     fun byName(items: List<ItemDemand>) = items.sortedBy { name(it).lowercase() }

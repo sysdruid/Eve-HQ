@@ -30,10 +30,13 @@ import java.util.Locale
 import java.util.logging.Level
 import java.util.logging.Logger
 
+/** A line about an item, with its type id for the icon. */
+data class ItemLine(val text: String, val item: TypeId)
+
 /** One phase: the jobs the plan still asks for, and the running and finished (undelivered) jobs making its products. */
 data class PhaseBlock(
     val title: String,
-    val toStart: List<String>,
+    val toStart: List<ItemLine>,
     val running: List<JobLine> = emptyList(),
     val ready: List<JobLine> = emptyList(),
 )
@@ -45,7 +48,7 @@ data class ProjectsUiState(
     val selected: ProjectId = ProjectId.entries.first(),
     val loading: Boolean = false,
     val title: String = "",
-    val goals: List<String> = emptyList(),
+    val goals: List<ItemLine> = emptyList(),
     val phases: List<PhaseBlock> = emptyList(),
     /** What the plan does not produce and is short of, by item group, with multibuy text per group. */
     val prerequisites: Prerequisites = Prerequisites(emptyList(), ""),
@@ -99,13 +102,13 @@ class ProjectsViewModel(
                     it.copy(
                         loading = false,
                         title = project.title,
-                        goals = result.goals.map { goal -> "${count(goal.required)} × ${name(goal.item)}" },
+                        goals = result.goals.map { goal -> ItemLine("${count(goal.required)} × ${name(goal.item)}", goal.item) },
                         phases = result.plan.phases.map { phase ->
                             val making = result.running.rows.filter { it.productId in phase.products && it.makesItems() }
                             val (done, going) = making.partition { it.isReady(now) }
                             PhaseBlock(
                                 title = "Phase ${phase.number}",
-                                toStart = phase.jobs.map(::jobLine),
+                                toStart = phase.jobs.map { job -> ItemLine(jobLine(job), job.product) },
                                 running = going.map { row -> row.toLine(now) },
                                 ready = done.map { row -> row.toLine(now) },
                             )

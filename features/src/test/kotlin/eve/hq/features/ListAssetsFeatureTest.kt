@@ -30,7 +30,7 @@ class ListAssetsFeatureTest {
         assertThat(initialCache.items).isEmpty()
         assertThat(initialCache.snapshots).isEmpty()
         assertThat(result.failures).isEmpty()
-        assertThat(result.items).containsExactly(AssetRow("Alice", "Jita", "", "Tritanium", 7))
+        assertThat(result.items).containsExactly(AssetRow("Alice", "Jita", "", "Tritanium", 7, 34))
         assertThat(cached.items).containsExactlyElementsOf(result.items)
         assertThat(cached.snapshots.single().updatedAt).isEqualTo(system.now)
         system.esi.characterAssets(1).assertPagesRequested(1)
@@ -50,7 +50,7 @@ class ListAssetsFeatureTest {
         val cached = system.cachedAssets()
         val refreshed = runBlocking { system.listAssets() }
 
-        assertThat(cached.items).containsExactly(AssetRow("Alice", "Jita", "", "Tritanium", 7))
+        assertThat(cached.items).containsExactly(AssetRow("Alice", "Jita", "", "Tritanium", 7, 34))
         assertThat(cached.snapshots.single().updatedAt).isEqualTo(system.now)
         assertThat(refreshed.items).containsExactlyElementsOf(cached.items)
         assertThat(refreshed.failures).isEmpty()
@@ -98,8 +98,8 @@ class ListAssetsFeatureTest {
 
         assertThat(result.failures).isEmpty()
         assertThat(result.items).containsExactlyInAnyOrder(
-            AssetRow("Alice", "Jita", "", "Tritanium", 7),
-            AssetRow("Alice", "Jita", "", "Pyerite", 3),
+            AssetRow("Alice", "Jita", "", "Tritanium", 7, 34),
+            AssetRow("Alice", "Jita", "", "Pyerite", 3, 35),
         )
         system.esi.characterAssets(1).assertPagesRequested(1, 2, 2)
     }
@@ -196,7 +196,7 @@ class ListAssetsFeatureTest {
         val failedReplacement = runBlocking { system.listAssets() }
         val afterNotModified = runBlocking { system.listAssets() }
 
-        val oldRow = AssetRow("Alice", "Jita", "", "Tritanium", 7)
+        val oldRow = AssetRow("Alice", "Jita", "", "Tritanium", 7, 34)
         assertThat(initial.items).containsExactly(oldRow)
         assertThat(failedReplacement.failures).hasSize(1)
         assertThat(failedReplacement.items).containsExactly(oldRow)
@@ -242,8 +242,8 @@ class ListAssetsFeatureTest {
         assertThat(remainingCache.items.map(AssetRow::characterName)).containsExactly("Bob")
         assertThat(afterReAdd.failures).isEmpty()
         assertThat(afterReAdd.items).containsExactlyInAnyOrder(
-            AssetRow("Alice", "Jita", "", "Tritanium", 2),
-            AssetRow("Bob", "Amarr", "", "Pyerite", 3),
+            AssetRow("Alice", "Jita", "", "Tritanium", 2, 34),
+            AssetRow("Bob", "Amarr", "", "Pyerite", 3, 35),
         )
         system.esi.characterAssets(1).assertPagesRequested(1, 1)
         system.esi.characterAssets(2).assertPagesRequested(1)

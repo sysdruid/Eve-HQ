@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Duration
 
-data class BlueprintLine(val text: String, val inUse: Boolean)
+data class BlueprintLine(val text: String, val inUse: Boolean, val blueprintTypeId: Long, val copy: Boolean)
 
 data class BlueprintsUiState(
     val loading: Boolean = false,
@@ -93,6 +93,8 @@ class BlueprintsViewModel(
                 text = "${row.characterName}  ${row.blueprintName}  $kind  ME ${row.materialEfficiency}  " +
                     "TE ${row.timeEfficiency}  @ ${row.locationName}$use",
                 inUse = row.use != null,
+                blueprintTypeId = row.blueprintTypeId,
+                copy = row.kind == BlueprintKind.Copy,
             )
         }
     }

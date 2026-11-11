@@ -15,6 +15,9 @@ class EveBitmaps(private val images: EveImages, private val capacity: Int = 600)
 
     suspend fun typeIcon(typeId: Long, size: Int = 64): ImageBitmap? = bitmap("t$typeId-$size") { images.typeIcon(typeId, size) }
 
+    suspend fun blueprintIcon(typeId: Long, copy: Boolean, size: Int = 64): ImageBitmap? =
+        bitmap("b${if (copy) 'c' else 'o'}$typeId-$size") { images.blueprintIcon(typeId, copy, size) }
+
     suspend fun portrait(characterId: Long, size: Int = 64): ImageBitmap? = bitmap("c$characterId-$size") { images.portrait(characterId, size) }
 
     private suspend fun bitmap(key: String, bytes: suspend () -> ByteArray?): ImageBitmap? {

@@ -36,6 +36,7 @@ class ListJobsFeatureTest {
                 facilityName = "Jita IV - Moon 4",
                 productId = 587,
                 facilityId = 60003760,
+                characterId = 1,
             ),
         )
         system.esi.assertAnyRequest {

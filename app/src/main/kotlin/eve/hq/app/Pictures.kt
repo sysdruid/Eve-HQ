@@ -33,6 +33,15 @@ fun TypeIcon(typeId: Long?, size: Dp = 32.dp, modifier: Modifier = Modifier) {
     Picture(bitmap, size, RoundedCornerShape(4.dp), modifier)
 }
 
+/** A blueprint's icon with the original or copy overlay. */
+@Composable
+fun BlueprintIcon(typeId: Long, copy: Boolean, size: Dp = 32.dp, modifier: Modifier = Modifier) {
+    val bitmaps = LocalEveBitmaps.current
+    val pixels = imagePixels(size)
+    val bitmap by produceState<ImageBitmap?>(null, typeId, copy, bitmaps, pixels) { value = bitmaps?.blueprintIcon(typeId, copy, pixels) }
+    Picture(bitmap, size, RoundedCornerShape(4.dp), modifier)
+}
+
 /** A character's portrait, round. */
 @Composable
 fun CharacterPortrait(characterId: Long, size: Dp = 40.dp, modifier: Modifier = Modifier) {

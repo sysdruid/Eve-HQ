@@ -124,14 +124,14 @@ class ProjectsViewModelTest {
         val state = viewModel.state.value
         assertThat(state.loading).isFalse()
         assertThat(state.title).isEqualTo("1000 Amarr Shuttles")
-        assertThat(state.goals).containsExactly("1,000 × Amarr Shuttle")
+        assertThat(state.goals).containsExactly(ItemLine("1,000 × Amarr Shuttle", 11134))
         assertThat(state.phases).containsExactly(
-            PhaseBlock("Phase 1", toStart = listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle")),
+            PhaseBlock("Phase 1", toStart = listOf(ItemLine("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle", 11134))),
         )
         val group = state.prerequisites.groups.single()
         assertThat(group.name).isEqualTo("Mineral")
         assertThat(group.lines).containsExactly(
-            PrerequisiteLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
+            PrerequisiteLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired, 34),
         )
         assertThat(group.multibuy).isEqualTo("Tritanium 2777000")
         assertThat(state.prerequisites.allMultibuy).isEqualTo("Tritanium 2777000")
@@ -173,7 +173,7 @@ class ProjectsViewModelTest {
         val state = viewModel.state.value
         assertThat(state.selected).isEqualTo(ProjectId.AnathemaInputs)
         assertThat(state.title).isEqualTo("Inputs for 500 Anathemas")
-        assertThat(state.goals).containsExactly("150,000 × Tungsten Carbide Armor Plate")
+        assertThat(state.goals).containsExactly(ItemLine("150,000 × Tungsten Carbide Armor Plate", 11543))
         assertThat(state.loading).isFalse()
     }
 
@@ -199,6 +199,7 @@ class ProjectsViewModelTest {
 
         assertThat(state.hullJobs).hasSize(2)
         assertThat(state.hullJobs.first().text).startsWith("Alice-Amarr Shuttle [")
+        assertThat(state.hullJobs.map { it.productId }).containsOnly(11134L) // for the icon
         assertThat(state.hullJobsSummary).isEqualTo("Amarr Shuttle 15 in progress (2 jobs)")
     }
 
@@ -242,7 +243,7 @@ class ProjectsViewModelTest {
         assertThat(phase.running).hasSize(1)
         assertThat(phase.ready).hasSize(1)
         assertThat(phase.ready.single().text).contains("Alice-Product 11134 [5]", "done")
-        assertThat(phase.toStart.single()).contains("985 runs") // 1,000 less the 15 on their way
+        assertThat(phase.toStart.single().text).contains("985 runs") // 1,000 less the 15 on their way
     }
 
     @Test
@@ -265,7 +266,7 @@ class ProjectsViewModelTest {
         val state = viewModel().state.value
 
         // Industry V is 20% off a 6000 s run: 1,000 runs take 4,800,000 s = 55d 13h.
-        assertThat(state.phases.single().toStart.single()).contains("1,000 runs × 1h 20m = 55d 13h")
+        assertThat(state.phases.single().toStart.single().text).contains("1,000 runs × 1h 20m = 55d 13h")
         assertThat(state.timeFailures).isEmpty()
     }
 
@@ -276,7 +277,7 @@ class ProjectsViewModelTest {
 
         val state = viewModel().state.value
 
-        assertThat(state.phases.single().toStart.single()).contains("1,000 runs × 1h 40m = 69d 10h")
+        assertThat(state.phases.single().toStart.single().text).contains("1,000 runs × 1h 40m = 69d 10h")
         assertThat(state.timeFailures.single().message).isEqualTo("EVE denied skill access.")
     }
 }

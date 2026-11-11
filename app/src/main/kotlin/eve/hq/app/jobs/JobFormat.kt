@@ -26,7 +26,7 @@ internal val IndustryActivity.code: String
 
 enum class JobLineStatus(val label: String) { Running("Active"), Paused("Paused"), Ready("Ready") }
 
-data class JobLine(val text: String, val status: JobLineStatus, val progress: Float)
+data class JobLine(val text: String, val status: JobLineStatus, val progress: Float, val productId: Long? = null, val characterId: Long? = null)
 
 /** One running job as a line with its progress, as the Jobs tab and the project tabs show it. */
 internal fun JobRow.toLine(now: Instant): JobLine {
@@ -41,5 +41,7 @@ internal fun JobRow.toLine(now: Instant): JobLine {
         text = "$characterName-$itemName [$runs] ${activity.code}  ETL: $etl  ${status.label} @ $facilityName",
         status = status,
         progress = progress(now).toFloat(),
+        productId = productId,
+        characterId = characterId,
     )
 }

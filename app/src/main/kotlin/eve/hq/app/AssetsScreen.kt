@@ -55,7 +55,10 @@ fun AssetsScreen(viewModel: AssetsViewModel) {
             items(state.items) { row ->
                 val location = listOf(row.characterName, row.stationName, row.containerPath)
                     .filter(String::isNotEmpty).joinToString(" - ")
-                Text("$location: ${row.typeName}  ${row.quantity}")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TypeIcon(row.typeId, size = 32.dp)
+                    Text("$location: ${row.typeName}  ${row.quantity}")
+                }
             }
         }
     }

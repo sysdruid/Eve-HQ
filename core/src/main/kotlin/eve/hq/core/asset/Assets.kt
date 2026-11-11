@@ -28,6 +28,8 @@ data class AssetRow(
     val containerPath: String,
     val typeName: String,
     val quantity: Int,
+    /** For the item's icon. */
+    val typeId: Long,
 )
 
 data class AssetLoadFailure(val characterId: Long, val characterName: String, val message: String)
@@ -60,6 +62,7 @@ class ListAssets(private val service: AssetService) {
                 containerPath = asset.containers.joinToString(" > "),
                 typeName = asset.type.name ?: "Unknown type (${asset.type.id})",
                 quantity = asset.quantity,
+                typeId = asset.type.id,
             )
         }.sortedWith(
             compareBy<AssetRow> { it.characterName.lowercase() }

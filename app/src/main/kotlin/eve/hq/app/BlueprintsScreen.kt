@@ -51,10 +51,13 @@ fun BlueprintsScreen(viewModel: BlueprintsViewModel) {
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.lines) { line ->
-                Text(
-                    line.text,
-                    color = if (line.inUse) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BlueprintIcon(line.blueprintTypeId, copy = line.copy, size = 32.dp)
+                    Text(
+                        line.text,
+                        color = if (line.inUse) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }

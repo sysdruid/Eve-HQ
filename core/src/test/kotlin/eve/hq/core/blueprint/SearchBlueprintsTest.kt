@@ -28,5 +28,5 @@ class SearchBlueprintsTest {
     }
 
     private fun row(id: Long, character: String, name: String, location: String, use: BlueprintUse? = null) =
-        BlueprintRow(id, character, name, BlueprintKind.Original, 0, 0, null, location, use)
+        BlueprintRow(id, character, name, BlueprintKind.Original, 0, 0, null, location, use, blueprintTypeId = 0)
 }

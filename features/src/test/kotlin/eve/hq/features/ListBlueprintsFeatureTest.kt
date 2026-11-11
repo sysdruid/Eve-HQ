@@ -28,9 +28,9 @@ class ListBlueprintsFeatureTest {
         assertThat(result.rows).containsExactly(
             BlueprintRow(
                 1001, "Alice", "Rifter Blueprint", BlueprintKind.Original, 10, 20, null, "Jita IV - Moon 4",
-                use = BlueprintUse(IndustryActivity.Manufacturing, Instant.parse("2026-11-08T14:00:00Z")),
+                use = BlueprintUse(IndustryActivity.Manufacturing, Instant.parse("2026-11-08T14:00:00Z")), blueprintTypeId = 681,
             ),
-            BlueprintRow(1002, "Alice", "Rifter Blueprint", BlueprintKind.Copy, 2, 4, 4, "Jita IV - Moon 4", use = null),
+            BlueprintRow(1002, "Alice", "Rifter Blueprint", BlueprintKind.Copy, 2, 4, 4, "Jita IV - Moon 4", use = null, blueprintTypeId = 681),
         )
         system.esi.assertAnyRequest {
             it.path.endsWith("/characters/1/blueprints/") && it.headers[HttpHeaders.Authorization] == "Bearer fresh-access"

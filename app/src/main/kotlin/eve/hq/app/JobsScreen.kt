@@ -70,6 +70,14 @@ internal fun JobLineItem(line: JobLine) {
         Box(Modifier.matchParentSize()) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(line.progress).background(line.status.barColor()))
         }
-        Text(line.text, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), color = TEXT)
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            line.characterId?.let { CharacterPortrait(it, size = 32.dp) }
+            line.productId?.let { TypeIcon(it, size = 32.dp) }
+            Text(line.text, color = TEXT)
+        }
     }
 }

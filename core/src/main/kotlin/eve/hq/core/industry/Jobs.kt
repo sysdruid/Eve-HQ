@@ -51,6 +51,8 @@ data class JobRow(
     val productId: Long?,
     /** Id of the station or structure the job runs in, to find its type. */
     val facilityId: Long,
+    /** For the portrait of whoever runs the job. */
+    val characterId: Long,
 ) {
     /** Fraction of the job's duration that has passed, from 0.0 to 1.0. */
     fun progress(now: Instant): Double {
@@ -103,6 +105,7 @@ class ListJobs(private val source: JobSource, private val clock: Clock) {
         facilityName = facility.name ?: "Location ${facility.id}",
         productId = product?.id,
         facilityId = facility.id,
+        characterId = character.id,
     )
 }
 

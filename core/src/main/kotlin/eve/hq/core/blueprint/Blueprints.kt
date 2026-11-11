@@ -43,6 +43,8 @@ data class BlueprintRow(
     val remainingRuns: Int?,
     val locationName: String,
     val use: BlueprintUse?,
+    /** For the blueprint's icon. */
+    val blueprintTypeId: Long,
 )
 
 data class BlueprintLoadFailure(val characterId: Long, val characterName: String, val message: String)
@@ -104,6 +106,7 @@ class ListBlueprints(private val blueprints: BlueprintSource, private val jobs: 
         remainingRuns = remainingRuns,
         locationName = location.name ?: "Location ${location.id}",
         use = job?.let { BlueprintUse(it.activity, it.endsAt) },
+        blueprintTypeId = type.id,
     )
 }
 

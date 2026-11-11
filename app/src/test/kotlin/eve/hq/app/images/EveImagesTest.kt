@@ -100,4 +100,18 @@ class EveImagesTest {
         assertThat(all).allMatch { it.contentEquals(picture) }
         assertThat(requested).hasSize(1)
     }
+
+    @Test
+    fun `a blueprint has its own original and copy icons, each cached on its own`(@TempDir dir: Path) = runBlocking<Unit> {
+        val images = images(dir)
+
+        images.blueprintIcon(681, copy = false)
+        images.blueprintIcon(681, copy = true)
+        images.blueprintIcon(681, copy = false)
+
+        assertThat(requested).containsExactly(
+            "https://images.test/types/681/bp?size=64",
+            "https://images.test/types/681/bpc?size=64",
+        )
+    }
 }

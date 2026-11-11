@@ -56,6 +56,7 @@ class ListJobsTest {
                 facilityName = "Jita IV - Moon 4",
                 productId = 2,
                 facilityId = 60003760,
+                characterId = 1,
             ),
         )
         assertThat(result.failures).isEmpty()
@@ -204,6 +205,7 @@ class ListJobsTest {
         facilityName = "Jita",
         productId = null,
         facilityId = 60003760,
+        characterId = 1,
     )
 
     private fun aJob(

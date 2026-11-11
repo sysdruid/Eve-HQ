@@ -84,7 +84,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (tab) {
-                0 -> items(state.goals) { Text(it) }
+                0 -> items(state.goals) { line -> ItemRow(line.item) { Text(line.text) } }
                 1 -> {
                     val prerequisites = state.prerequisites
                     if (prerequisites.groups.isEmpty() && !state.loading && state.error == null) item { Text("No prerequisites missing.") }
@@ -107,7 +107,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                             }
                         }
                         items(group.lines) { line ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ItemRow(line.item) {
                                 Text(statusLabel(line.status), color = statusColor(line.status))
                                 Text(line.text)
                             }
@@ -135,9 +135,18 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                     }
                     item { Text("To start", style = MaterialTheme.typography.titleMedium) }
                     if (phase.toStart.isEmpty()) item { Text("Nothing to start.") }
-                    items(phase.toStart) { Text(it) }
+                    items(phase.toStart) { line -> ItemRow(line.item) { Text(line.text) } }
                 }
             }
         }
+    }
+}
+
+/** An item's icon beside what is said about it, the same way on every list. */
+@Composable
+private fun ItemRow(item: Long?, content: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TypeIcon(item, size = 32.dp)
+        content()
     }
 }
