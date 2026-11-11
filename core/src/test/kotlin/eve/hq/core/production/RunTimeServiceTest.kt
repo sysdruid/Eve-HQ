@@ -38,12 +38,28 @@ class RunTimeServiceTest {
     private val owned = mutableMapOf<Long, Result<List<OwnedBlueprint>>>()
     private val structureTypes = mutableMapOf<Pair<Long, Long>, Long?>() // (character, facility) -> type
 
+    private val start = Instant.parse("2026-11-11T12:00:00Z")
+    private var now = start
+    private val clock = object : java.time.Clock() {
+        override fun getZone() = java.time.ZoneId.of("UTC")
+
+        override fun withZone(zone: java.time.ZoneId?) = this
+
+        override fun instant() = now
+    }
+    private var skillReads = 0
+    private var implantReads = 0
+    private var blueprintReads = 0
+    private var structureReads = 0
+
     private val service = RunTimeService(
         rules,
-        SkillSource { skills.getValue(it.id).getOrThrow() },
-        ImplantSource { implants[it.id].orEmpty() },
-        StructureTypes { character, facility -> structureTypes[character.id to facility] },
-        BlueprintSource { owned.getValue(it.id).getOrThrow() },
+        SkillSource { skillReads++; skills.getValue(it.id).getOrThrow() },
+        ImplantSource { implantReads++; implants[it.id].orEmpty() },
+        StructureTypes { character, facility -> structureReads++; structureTypes[character.id to facility] },
+        BlueprintSource { blueprintReads++; owned.getValue(it.id).getOrThrow() },
+        clock,
+        java.time.Duration.ofMinutes(5),
     )
 
     private fun blueprint(te: Int, type: Long = photonBlueprint) = OwnedBlueprint(
@@ -122,5 +138,44 @@ class RunTimeServiceTest {
 
         assertThat(profile.failures).containsExactly(TimeInputFailure("Alice", "ESI down"))
         assertThat(profile.runTimes.modifiers(photon).blueprintTe).isZero()
+    }
+
+    @Test
+    fun `what was read is reused within the fresh window and read again after it`() {
+        skills[alice.id] = Result.success(mapOf(industry to 5))
+        structureTypes[alice.id to structureId] = raitaru
+
+        profile(alice, facilities = setOf(structureId))
+        now = start.plusSeconds(299)
+        profile(alice, facilities = setOf(structureId))
+
+        assertThat(listOf(skillReads, implantReads, blueprintReads, structureReads)).containsOnly(1)
+
+        now = start.plusSeconds(300)
+        profile(alice, facilities = setOf(structureId))
+
+        assertThat(listOf(skillReads, implantReads, blueprintReads, structureReads)).containsOnly(2)
+    }
+
+    @Test
+    fun `a structure nobody could see is not asked about again within the window`() {
+        skills[alice.id] = Result.success(emptyMap())
+
+        profile(alice, facilities = setOf(structureId))
+        profile(alice, facilities = setOf(structureId))
+
+        assertThat(structureReads).isEqualTo(1)
+    }
+
+    @Test
+    fun `a character that failed is read again at the next profile, not remembered as failed`() {
+        skills[alice.id] = Result.failure(LoginRequired("denied"))
+        profile(alice)
+
+        skills[alice.id] = Result.success(mapOf(industry to 5))
+        val profile = profile(alice)
+
+        assertThat(profile.failures).isEmpty()
+        assertThat(profile.runTimes.modifiers(photon).skills).containsExactly(0.20)
     }
 }

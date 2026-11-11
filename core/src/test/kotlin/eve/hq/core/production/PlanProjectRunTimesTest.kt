@@ -66,6 +66,7 @@ class PlanProjectRunTimesTest {
             ImplantSource { emptySet() },
             StructureTypes { _, facility -> structureAt[facility] },
             BlueprintSource { blueprints },
+            clock,
         ),
     )
 
