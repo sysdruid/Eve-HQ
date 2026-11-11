@@ -76,6 +76,10 @@ class EsiMock(configure: EsiMock.() -> Unit) {
 
     fun characterIndustryJobs(characterId: Long) = get("/characters/$characterId/industry/jobs/")
 
+    fun characterSkills(characterId: Long) = get("/characters/$characterId/skills/")
+
+    fun characterImplants(characterId: Long) = get("/characters/$characterId/implants/")
+
     fun characterAssetNames(characterId: Long) = post("/characters/$characterId/assets/names/")
 
     fun universeNames() = post("/universe/names/")
