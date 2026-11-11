@@ -4,6 +4,7 @@ import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.AssetSource
+import eve.hq.core.asset.OwnedAssets
 import eve.hq.core.character.EveCharacter
 import java.time.Clock
 
@@ -29,8 +30,14 @@ class ListStockpiles(private val stockpiles: StockpileRepository, private val as
     constructor(stockpiles: StockpileRepository, source: AssetSource, clock: Clock = Clock.systemUTC()) :
         this(stockpiles, AssetService(source, clock))
 
-    suspend operator fun invoke(characters: List<EveCharacter>, refresh: Boolean = false): StockpileListing {
-        val owned = assets.assets(characters, refresh = refresh)
+    /** The listing from saved assets, without the network; null when nothing is saved yet (every pile would look empty). */
+    fun cached(characters: List<EveCharacter>): StockpileListing? =
+        assets.savedAssets(characters).takeIf { it.snapshots.isNotEmpty() }?.let(::listing)
+
+    suspend operator fun invoke(characters: List<EveCharacter>, refresh: Boolean = false): StockpileListing =
+        listing(assets.assets(characters, refresh = refresh))
+
+    private fun listing(owned: OwnedAssets): StockpileListing {
         val rows = stockpiles.all().map { pile ->
             val quantity = owned.quantityOf(pile.item, pile.station?.id)
             StockpileRow(pile, quantity, pile.statusFor(quantity))

@@ -161,7 +161,12 @@ class StockpilesViewModel(
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
-                val listing = withContext(io) { listStockpiles(listCharacters(), fetch) }
+                val characters = withContext(io) { listCharacters() }
+                withContext(io) { listStockpiles.cached(characters) }?.let { saved ->
+                    _state.update { it.copy(lines = saved.rows.map(::line), stations = saved.stations) }
+                    known = saved.rows.associate { it.stockpile.key to it.stockpile }
+                }
+                val listing = withContext(io) { listStockpiles(characters, fetch) }
                 known = listing.rows.associate { it.stockpile.key to it.stockpile }
                 _state.update {
                     it.copy(loading = false, lines = listing.rows.map(::line), failures = listing.failures, stations = listing.stations)

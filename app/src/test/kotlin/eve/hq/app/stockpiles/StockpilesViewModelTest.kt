@@ -3,7 +3,10 @@ package eve.hq.app.stockpiles
 import eve.hq.app.characters.AppSystem
 import eve.hq.core.asset.AssetItem
 import eve.hq.core.asset.AssetLocation
+import eve.hq.core.asset.AssetSnapshot
 import eve.hq.core.asset.AssetSource
+import eve.hq.core.character.EveCharacter
+import java.time.Instant
 import eve.hq.core.asset.AssetType
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.production.ItemType
@@ -43,9 +46,17 @@ class StockpilesViewModelTest {
     private val catalog = TypeCatalog { query -> listOf(crystals).filter { it.name.contains(query, ignoreCase = true) } }
     private var assets: suspend () -> List<AssetItem> = { emptyList() }
 
+    private var savedAssets: List<AssetItem>? = null
+    private val source = object : AssetSource {
+        override suspend fun load(character: EveCharacter) = assets()
+
+        override fun cachedSnapshot(characterId: Long) =
+            savedAssets?.let { AssetSnapshot(it, Instant.parse("2026-11-11T10:00:00Z")) }
+    }
+
     private fun viewModel() = StockpilesViewModel(
         ListCharacters(system.repository),
-        ListStockpiles(repository, AssetSource { assets() }),
+        ListStockpiles(repository, source),
         repository,
         catalog,
         scope,
@@ -70,6 +81,31 @@ class StockpilesViewModelTest {
         assertThat(viewModel.state.value.lines).containsExactly(
             StockpileLine(StockpileKey(100), "Multifrequency L", "Multifrequency L  on hand 1,210  required 100  preferred 300", StockpileStatus.Ok),
         )
+    }
+
+    @Test
+    fun `saved assets are listed while the fresh load is still pending`() {
+        system.store(1, "Alice")
+        saved[StockpileKey(100)] = Stockpile(100, "Multifrequency L", required = 100)
+        savedAssets = listOf(asset(1, 100, 40))
+        val pending = CompletableDeferred<List<AssetItem>>()
+        assets = { pending.await() }
+
+        val viewModel = viewModel()
+
+        assertThat(viewModel.state.value.loading).isTrue()
+        assertThat(viewModel.state.value.lines.single().text).endsWith("on hand 40  required 100")
+        pending.complete(listOf(asset(1, 100, 90)))
+        assertThat(viewModel.state.value.lines.single().text).endsWith("on hand 90  required 100")
+    }
+
+    @Test
+    fun `without saved assets nothing is listed until the load arrives`() {
+        system.store(1, "Alice")
+        saved[StockpileKey(100)] = Stockpile(100, "Multifrequency L", required = 100)
+        assets = { CompletableDeferred<List<AssetItem>>().await() }
+
+        assertThat(viewModel().state.value.lines).isEmpty()
     }
 
     @Test

@@ -149,6 +149,25 @@ class ListStockpilesTest {
     }
 
     @Test
+    fun `cached lists the saved assets without asking the source`() {
+        stockpiles += crystals
+        cached[alice.id] = listOf(asset(1, crystals.item, 150, location = 9000))
+        failing[alice.id] = "must not be asked"
+
+        val listing = ListStockpiles(repository, source).cached(listOf(alice))
+
+        assertThat(listing?.rows).containsExactly(StockpileRow(crystals, 150, StockpileStatus.BelowPreferred))
+        assertThat(listing?.failures).isEmpty()
+    }
+
+    @Test
+    fun `cached is null when no assets were ever saved`() {
+        stockpiles += crystals
+
+        assertThat(ListStockpiles(repository, source).cached(listOf(alice))).isNull()
+    }
+
+    @Test
     fun `two consumers of one asset service share a single load`() = runBlocking<Unit> {
         stockpiles += crystals
         assets[alice.id] = listOf(asset(1, crystals.item, 150, location = 9000))
