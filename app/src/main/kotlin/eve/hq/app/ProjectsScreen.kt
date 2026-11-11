@@ -62,7 +62,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
         val tab = selectedTab.coerceIn(0, lastTab)
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
             Tab(selected = tab == 0, onClick = { selectedTab = 0 }, text = { Text("Goals (${state.goals.size})") })
-            Tab(selected = tab == 1, onClick = { selectedTab = 1 }, text = { Text("Prerequisites (${state.shopping.size})") })
+            Tab(selected = tab == 1, onClick = { selectedTab = 1 }, text = { Text("Prerequisites (${state.prerequisites.groups.sumOf { it.lines.size }})") })
             state.phases.forEachIndexed { index, phase ->
                 Tab(
                     selected = tab == index + 2,
@@ -80,11 +80,31 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
             when (tab) {
                 0 -> items(state.goals) { Text(it) }
                 1 -> {
-                    if (state.shopping.isEmpty() && !state.loading && state.error == null) item { Text("No prerequisites missing.") }
-                    items(state.shopping) { line ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(statusLabel(line.status), color = statusColor(line.status))
-                            Text(line.text)
+                    val prerequisites = state.prerequisites
+                    if (prerequisites.groups.isEmpty() && !state.loading && state.error == null) item { Text("No prerequisites missing.") }
+                    if (prerequisites.allMultibuy.isNotEmpty()) {
+                        item {
+                            OutlinedButton(onClick = { copyToClipboard(prerequisites.allMultibuy) }) { Text("Copy all as multibuy") }
+                        }
+                    }
+                    prerequisites.groups.forEach { group ->
+                        item {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(top = 8.dp),
+                            ) {
+                                Text("${group.name} (${group.lines.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                if (group.multibuy.isNotEmpty()) {
+                                    OutlinedButton(onClick = { copyToClipboard(group.multibuy) }) { Text("Copy multibuy") }
+                                }
+                            }
+                        }
+                        items(group.lines) { line ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(statusLabel(line.status), color = statusColor(line.status))
+                                Text(line.text)
+                            }
                         }
                     }
                 }

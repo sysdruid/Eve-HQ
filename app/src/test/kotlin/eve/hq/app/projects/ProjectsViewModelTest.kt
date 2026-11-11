@@ -43,7 +43,7 @@ class ProjectsViewModelTest {
     private val catalog = object : ItemCatalog {
         override fun itemName(item: Long) = names[item]
 
-        override fun groupName(item: Long): String? = null
+        override fun groupName(item: Long): String? = if (item == 34L) "Mineral" else null
 
         override fun findItem(name: String) = names.entries.firstOrNull { it.value == name }?.key
     }
@@ -106,9 +106,13 @@ class ProjectsViewModelTest {
         assertThat(state.phases).containsExactly(
             PhaseBlock("Phase 1", toStart = listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle")),
         )
-        assertThat(state.shopping).containsExactly(
-            ShoppingLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
+        val group = state.prerequisites.groups.single()
+        assertThat(group.name).isEqualTo("Mineral")
+        assertThat(group.lines).containsExactly(
+            PrerequisiteLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
         )
+        assertThat(group.multibuy).isEqualTo("Tritanium 2777000")
+        assertThat(state.prerequisites.allMultibuy).isEqualTo("Tritanium 2777000")
     }
 
     @Test
@@ -119,7 +123,7 @@ class ProjectsViewModelTest {
         val state = viewModel().state.value
 
         assertThat(state.failures.single().message).isEqualTo("ESI is down")
-        assertThat(state.shopping.single().text).contains("on hand 0")
+        assertThat(state.prerequisites.groups.single().lines.single().text).contains("on hand 0")
     }
 
     @Test

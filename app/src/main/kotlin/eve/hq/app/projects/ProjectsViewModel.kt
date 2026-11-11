@@ -12,7 +12,6 @@ import eve.hq.core.production.PlanProject
 import eve.hq.core.production.ProjectId
 import eve.hq.core.production.StockpileStatus
 import eve.hq.app.jobs.asEtl
-import eve.hq.core.production.ItemDemand
 import eve.hq.core.production.PlannedJob
 import eve.hq.core.production.TypeId
 import kotlinx.coroutines.CancellationException
@@ -38,8 +37,6 @@ data class PhaseBlock(
     val ready: List<JobLine> = emptyList(),
 )
 
-data class ShoppingLine(val text: String, val status: StockpileStatus)
-
 data class ProjectChoice(val id: ProjectId, val title: String)
 
 data class ProjectsUiState(
@@ -49,7 +46,8 @@ data class ProjectsUiState(
     val title: String = "",
     val goals: List<String> = emptyList(),
     val phases: List<PhaseBlock> = emptyList(),
-    val shopping: List<ShoppingLine> = emptyList(),
+    /** What the plan does not produce and is short of, by item group, with multibuy text per group. */
+    val prerequisites: Prerequisites = Prerequisites(emptyList(), ""),
     val failures: List<AssetLoadFailure> = emptyList(),
     /** Running jobs making the project's end products (the hulls), as the Jobs tab shows them. */
     val hullJobs: List<JobLine> = emptyList(),
@@ -109,7 +107,7 @@ class ProjectsViewModel(
                                 ready = done.map { row -> row.toLine(now) },
                             )
                         },
-                        shopping = result.plan.prerequisites.map(::shoppingLine),
+                        prerequisites = groupPrerequisites(result.plan.prerequisites, catalog),
                         failures = result.failures,
                         hullJobs = hullRows.map { row -> row.toLine(now) },
                         hullJobsSummary = summary(hullRows),
@@ -126,7 +124,7 @@ class ProjectsViewModel(
                         title = project.title,
                         goals = emptyList(),
                         phases = emptyList(),
-                        shopping = emptyList(),
+                        prerequisites = Prerequisites(emptyList(), ""),
                         failures = emptyList(),
                         hullJobs = emptyList(),
                         hullJobsSummary = "",
@@ -154,11 +152,6 @@ class ProjectsViewModel(
         val total = Duration.ofSeconds(job.totalSeconds).asEtl()
         return "${name(job.blueprint)}  $runs × $each = $total  → ${name(job.product)}"
     }
-
-    private fun shoppingLine(demand: ItemDemand) = ShoppingLine(
-        "${name(demand.item)}  need ${count(demand.required)}  on hand ${count(demand.onHand)}  short ${count(demand.deficit)}",
-        demand.status,
-    )
 
     private fun name(item: TypeId) = catalog.itemName(item) ?: "Type $item"
 

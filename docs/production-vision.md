@@ -171,8 +171,10 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
    once, contributions, the prerequisites as a view, phases as depth, recipe and item adapters over the SDE (published
    blueprints only), a Projects tab with a project picker, two code-defined projects (1000 Amarr Shuttles; the inputs of five hundred
    Anathema jobs, built from the reusable `inputsOfJobs` goal: components, composites and intermediates are built in phases,
-   everything else is bought) and the Anathema build rule written from the real groups in its tree. Next: the aggregated
-   prerequisites list over all projects, copy buttons and the per-item contributions on click, then more projects.
+   everything else is bought) and the Anathema build rule written from the real groups in its tree. The prerequisites tab
+   groups them by item group (Moon Materials, Mineral, Frigate ...) with a multibuy copy per group and for all. Next: the
+   aggregated prerequisites list over all projects and the per-item contributions on click, then more projects. Market groups
+   (the in-game tree) are not imported; item groups answered the need.
 3b. Readiness goals. Done: explicit hull list, runs that fit the cycle, max over members per material x speed x jobs, direct
    inputs as requirements, and job splitting by cycle length (the Medium T2 hulls project, configured in `Projects.kt`).
    To do: fixed-run copies (T3), selector filters after the type-attribute import, slot and blueprint max-run limits.

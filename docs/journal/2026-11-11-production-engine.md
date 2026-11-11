@@ -54,6 +54,9 @@
   output covered a whole layer its tab would vanish and the others renumber, exactly when its running jobs mattered. Phases now
   come from a structural pass without stock (planning twice, about 0.4 s each on the real trees), and the jobs and running jobs
   hang off those stable layers.
+- "Shopping list" was the wrong word: some of what a plan does not produce the owner builds elsewhere (T1 hulls), some is bought
+  (moon materials). It became "prerequisites", grouped by item group, with an EVE multibuy text per group, so the owner decides
+  per group. The item group already in the data matched the owner's own examples; the market-group tree would have needed a new import.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written
