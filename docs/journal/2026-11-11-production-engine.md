@@ -62,6 +62,10 @@
   wrong guess (a second implant) did not survive: the SDE shows the blueprint's own required engineering skills give 1% a level
   (Electronic Engineering IV for electronic components). Lesson: the data states the rule, so import the numbers instead of
   recalling them. The formula is pinned by that real job; the importer now reads skills and time-bonus attributes.
+- First run on the real recipes with the owner's real factors showed the plan wanting about 2.7 times the materials of base time,
+  nearly double what the old 1.4 gave. That also exposed a modelling slip: the probe gave every blueprint TE 20, but T2 hulls are built
+  from freshly invented copies at 2 to 4. The hull's blueprint TE became a setting of the project, and the phases below keep using the
+  blueprints actually owned. Every factor has to describe the job that will really run.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

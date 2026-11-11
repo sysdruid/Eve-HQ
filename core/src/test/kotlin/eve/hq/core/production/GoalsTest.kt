@@ -125,4 +125,22 @@ class GoalsTest {
             Requirement(datacore, 192, "sixteen"),
         )
     }
+
+    @Test
+    fun `the hulls are planned at the time efficiency of the copies that will be invented, not the one owned`() {
+        // 240,000 s a run, 14 days. TE 20 would make a run 192,000 s (6 fit); an invented copy at TE 4 makes it 230,400 s (5 fit).
+        val book = hullRecipes(hull(1, 240_000, tritanium to 10))
+        val noRules = object : TimeRules {
+            override fun bonus(type: TypeId, attribute: Int): Double? = null
+
+            override fun requiredSkills(blueprint: TypeId, activity: eve.hq.core.industry.IndustryActivity) = emptyMap<TypeId, Int>()
+        }
+        val ownsTe20 = RunTimes(noRules, emptyList(), blueprintTe = { 20 })
+
+        val atOwned = readinessRequirements(book, listOf(1), CycleSettings(twoWeeks), 1, "ready", ownsTe20)
+        val invented = readinessRequirements(book, listOf(1), CycleSettings(twoWeeks), 1, "ready", ownsTe20, blueprintTe = 4)
+
+        assertThat(atOwned.single().required).isEqualTo(60)
+        assertThat(invented.single().required).isEqualTo(50)
+    }
 }

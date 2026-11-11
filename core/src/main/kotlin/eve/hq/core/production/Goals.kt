@@ -14,7 +14,8 @@ fun inputsOfJobs(recipes: RecipeBook, product: TypeId, jobs: Long, because: Stri
  * the whole runs that fit in it, at the real time per run when [runTimes] is given (base time otherwise), times its recipe;
  * per material the largest of those over all hulls (not their sum, since only one kind is built per job; not their average,
  * which understates the most demanding hull), times [jobs]. Only direct inputs are asked for; the layers below follow from
- * the plan.
+ * the plan. [blueprintTe], when given, is the time efficiency assumed for the hulls' blueprints instead of the best one owned:
+ * a T2 hull is built from a copy invented for the occasion, so what is owned today says little about it.
  */
 fun readinessRequirements(
     recipes: RecipeBook,
@@ -23,10 +24,16 @@ fun readinessRequirements(
     jobs: Long,
     because: String,
     runTimes: RunTimes? = null,
+    blueprintTe: Int? = null,
 ): List<Requirement> {
     // A single run longer than the usable cycle still needs its inputs, so at least one run counts.
     val largest = largestNeeds(recipes, hulls) { recipe ->
-        (runTimes?.modifiers(recipe) ?: TimeModifiers()).maxRuns(recipe.secondsPerRun, cycle.usable)
+        val modifiers = when {
+            runTimes == null -> TimeModifiers()
+            blueprintTe != null -> runTimes.modifiers(recipe, blueprintTe)
+            else -> runTimes.modifiers(recipe)
+        }
+        modifiers.maxRuns(recipe.secondsPerRun, cycle.usable)
     }
     return largest.map { (material, quantity) -> Requirement(material, quantity * jobs, because) }
 }

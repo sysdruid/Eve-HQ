@@ -9,7 +9,16 @@ enum class ProjectId(val title: String) {
 }
 
 /** What a readiness project is configured with: the hulls to be ready for, the cycle's tempo and how many jobs. */
-data class ReadinessConfig(val hulls: List<String>, val cycle: CycleSettings, val jobs: Long)
+data class ReadinessConfig(
+    val hulls: List<String>,
+    val cycle: CycleSettings,
+    val jobs: Long,
+    /**
+     * The time efficiency, in percent, assumed for the hulls' blueprints. T2 hulls are built from copies invented for the
+     * occasion (2 to 4 percent), so the blueprints owned today say little about them.
+     */
+    val blueprintTe: Int = 4,
+)
 
 /**
  * The medium T2 hull project's settings; edit them here. The hulls are plain item names, and the cycle also limits how long a
@@ -42,6 +51,7 @@ val MEDIUM_T2_HULLS = ReadinessConfig(
     ),
     cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
     jobs = 4,
+    blueprintTe = 4, // invented T2 copies come out at 2 to 4; the higher end errs towards more material on hand
 )
 
 class Projects(
@@ -79,6 +89,7 @@ class Projects(
                 mediumT2Hulls.jobs,
                 "${mediumT2Hulls.jobs} cycle jobs of any of ${mediumT2Hulls.hulls.size} hulls",
                 runTimes,
+                mediumT2Hulls.blueprintTe,
             ),
             cycle = mediumT2Hulls.cycle,
             endProducts = mediumT2Hulls.hulls.mapTo(linkedSetOf(), items::id),

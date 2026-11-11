@@ -163,4 +163,20 @@ class ProjectsTest {
     }
 
     private val allRecipes = RecipeBook { product -> listOf(hullRecipes, t3Recipes, anathemaRecipe).firstNotNullOfOrNull { it.forProduct(product) } }
+
+    @Test
+    fun `the medium hull project plans its hulls at the configured time efficiency, whatever blueprint is owned`() {
+        val noRules = object : TimeRules {
+            override fun bonus(type: TypeId, attribute: Int): Double? = null
+
+            override fun requiredSkills(blueprint: TypeId, activity: eve.hq.core.industry.IndustryActivity) = emptyMap<TypeId, Int>()
+        }
+        val ownsTe20 = RunTimes(noRules, emptyList(), blueprintTe = { 20 })
+        val oneHull = ReadinessConfig(listOf("Zealot"), CycleSettings(java.time.Duration.ofDays(14)), jobs = 1, blueprintTe = 4)
+
+        val project = Projects(Items(hullNames), hullRecipes, oneHull).get(ProjectId.MediumT2Hulls, ownsTe20)
+
+        // 240,000 s at TE 4 is 230,400 s: 5 runs fit in 14 days (6 would at TE 20), 300 plates each.
+        assertThat(project.requirements().single().required).isEqualTo(1_500)
+    }
 }
