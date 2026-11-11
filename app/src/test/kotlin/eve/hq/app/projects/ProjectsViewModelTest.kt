@@ -45,7 +45,7 @@ class ProjectsViewModelTest {
 
     private fun viewModel() = ProjectsViewModel(
         ListCharacters(system.repository),
-        PlanProject(Projects(Items(catalog)), recipes, service),
+        PlanProject(Projects(Items(catalog), recipes), recipes, service),
         catalog,
         scope,
         dispatcher,

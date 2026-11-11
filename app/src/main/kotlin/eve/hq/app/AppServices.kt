@@ -132,10 +132,11 @@ object AppServices {
             BlueprintsViewModel(listCharacters, ListBlueprints(source, jobSource.value), clock, scope, Dispatchers.IO)
         }
         val staticItems = StaticItemCatalog(database.dataSource)
+        val recipeBook = StaticRecipeBook(database.dataSource)
         val projects = lazy {
             ProjectsViewModel(
                 listCharacters,
-                PlanProject(Projects(Items(staticItems)), StaticRecipeBook(database.dataSource), assetService.value),
+                PlanProject(Projects(Items(staticItems), recipeBook), recipeBook, assetService.value),
                 staticItems,
                 scope,
                 Dispatchers.IO,
