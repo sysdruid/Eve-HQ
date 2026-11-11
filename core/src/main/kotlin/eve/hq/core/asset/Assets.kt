@@ -1,10 +1,8 @@
 package eve.hq.core.asset
 
 import eve.hq.core.character.EveCharacter
-import kotlinx.coroutines.CancellationException
+import java.time.Clock
 import java.time.Instant
-import java.util.logging.Level
-import java.util.logging.Logger
 
 data class AssetType(val id: Long, val name: String?)
 
@@ -44,28 +42,22 @@ data class AssetListing(
     val snapshots: List<AssetSnapshotInfo> = emptyList(),
 )
 
-class ListAssets(private val source: AssetSource) {
-    suspend operator fun invoke(characters: List<EveCharacter>, query: String = ""): AssetListing {
-        val characterResults = characters.map { characterAssets(it) }
-        return listing(characterResults, query)
-    }
+class ListAssets(private val service: AssetService) {
+    /** Convenience for callers with a plain source; production shares one [AssetService] between all consumers. */
+    constructor(source: AssetSource, clock: Clock = Clock.systemUTC()) : this(AssetService(source, clock))
 
-    fun cached(characters: List<EveCharacter>, query: String = ""): AssetListing {
-        val characterResults = characters.mapNotNull { character ->
-            source.cachedSnapshot(character.id)?.let { snapshot ->
-                CharacterAssets(
-                    rows = assetRows(character, snapshot.items),
-                    snapshot = AssetSnapshotInfo(character.id, character.name, snapshot.updatedAt),
-                )
-            }
+    suspend operator fun invoke(characters: List<EveCharacter>, query: String = "", refresh: Boolean = false): AssetListing =
+        listing(service.assetsOf(characters, refresh), query)
+
+    fun cached(characters: List<EveCharacter>, query: String = ""): AssetListing =
+        listing(service.saved(characters).filter { it.snapshot != null }, query)
+
+    private fun listing(results: List<CharacterAssets>, query: String): AssetListing {
+        val rows = results.flatMap { result -> result.snapshot?.let { assetRows(result.character, it.items) }.orEmpty() }
+        val failures = results.mapNotNull(CharacterAssets::failure)
+        val snapshots = results.mapNotNull { result ->
+            result.snapshot?.let { AssetSnapshotInfo(result.character.id, result.character.name, it.updatedAt) }
         }
-        return listing(characterResults, query)
-    }
-
-    private fun listing(characterResults: List<CharacterAssets>, query: String): AssetListing {
-        val rows = characterResults.flatMap(CharacterAssets::rows)
-        val failures = characterResults.mapNotNull(CharacterAssets::failure)
-        val snapshots = characterResults.mapNotNull(CharacterAssets::snapshot)
         val sorted = rows.sortedWith(
             compareBy<AssetRow> { it.characterName.lowercase() }
                 .thenBy { it.stationName.lowercase() }
@@ -75,35 +67,9 @@ class ListAssets(private val source: AssetSource) {
         return AssetListing(SearchAssets()(sorted, query), failures, snapshots)
     }
 
-    private suspend fun characterAssets(character: EveCharacter): CharacterAssets {
-        val result = loadAssets(character)
-        val cached = source.cachedSnapshot(character.id)
-        val failure = result.exceptionOrNull()?.let { error ->
-            AssetLoadFailure(
-                character.id,
-                character.name,
-                error.message ?: "Unable to load assets",
-            )
-        }
-        return CharacterAssets(
-            rows = assetRows(character, result.getOrElse { cached?.items.orEmpty() }),
-            failure = failure,
-            snapshot = cached?.let { AssetSnapshotInfo(character.id, character.name, it.updatedAt) },
-        )
-    }
-
     private fun assetRows(character: EveCharacter, assets: List<AssetItem>): List<AssetRow> {
         val assetsById = assets.associateBy(AssetItem::itemId)
         return assets.map { it.toAssetRow(character, assetsById) }
-    }
-
-    private suspend fun loadAssets(character: EveCharacter): Result<List<AssetItem>> = try {
-        Result.success(source.load(character))
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Logger.getLogger("eve.hq.core.asset").log(Level.WARNING, "Loading assets failed", e)
-        Result.failure(e)
     }
 
     private fun AssetItem.toAssetRow(
@@ -128,12 +94,6 @@ class ListAssets(private val source: AssetSource) {
             quantity = quantity,
         )
     }
-
-    private data class CharacterAssets(
-        val rows: List<AssetRow> = emptyList(),
-        val failure: AssetLoadFailure? = null,
-        val snapshot: AssetSnapshotInfo? = null,
-    )
 }
 
 class SearchAssets {

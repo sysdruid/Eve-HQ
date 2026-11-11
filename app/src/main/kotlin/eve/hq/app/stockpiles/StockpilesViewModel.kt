@@ -98,14 +98,14 @@ class StockpilesViewModel(
         scope.launch {
             withContext(io) { stockpiles.save(pile) }
             _state.update { it.copy(form = null) }
-            refresh(force = true)
+            load(restart = true, fetch = false)
         }
     }
 
     fun remove(item: TypeId) {
         scope.launch {
             withContext(io) { stockpiles.remove(item) }
-            refresh(force = true)
+            load(restart = true, fetch = false)
         }
     }
 
@@ -134,15 +134,18 @@ class StockpilesViewModel(
     private var known = emptyMap<TypeId, Stockpile>()
 
     init {
-        refresh()
+        load(restart = false, fetch = false)
     }
 
-    fun refresh(force: Boolean = false) {
-        if (force) refreshJob?.cancel() else if (refreshJob?.isActive == true) return
+    /** The Refresh button: asks the asset service to fetch even if its copy is still fresh. */
+    fun refresh() = load(restart = true, fetch = true)
+
+    private fun load(restart: Boolean, fetch: Boolean) {
+        if (restart) refreshJob?.cancel() else if (refreshJob?.isActive == true) return
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
-                val listing = withContext(io) { listStockpiles(listCharacters()) }
+                val listing = withContext(io) { listStockpiles(listCharacters(), fetch) }
                 known = listing.rows.associate { it.stockpile.item to it.stockpile }
                 _state.update {
                     it.copy(loading = false, lines = listing.rows.map(::line), failures = listing.failures)

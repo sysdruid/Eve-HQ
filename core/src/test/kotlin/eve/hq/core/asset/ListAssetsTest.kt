@@ -2,7 +2,9 @@ package eve.hq.core.asset
 
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
@@ -12,6 +14,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ListAssetsTest {
+    private val loadedAt = Instant.parse("2026-11-11T12:00:00Z")
+
     @Test
     fun `given no characters, the asset list is empty`() = runBlocking {
         val source = AssetSource { error("asset source must not be called") }
@@ -31,7 +35,7 @@ class ListAssetsTest {
             )
         }
 
-        val result = ListAssets(source)(listOf(character))
+        val result = ListAssets(source, Clock.fixed(loadedAt, ZoneOffset.UTC))(listOf(character))
 
         assertEquals(
             AssetListing(
@@ -52,6 +56,7 @@ class ListAssetsTest {
                     ),
                 ),
                 failures = emptyList(),
+                snapshots = listOf(AssetSnapshotInfo(1, "Alice", loadedAt)),
             ),
             result,
         )

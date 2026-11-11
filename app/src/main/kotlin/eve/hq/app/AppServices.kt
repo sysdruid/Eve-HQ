@@ -5,6 +5,7 @@ import eve.hq.app.blueprints.BlueprintsViewModel
 import eve.hq.app.stockpiles.StockpilesViewModel
 import eve.hq.app.characters.CharactersViewModel
 import eve.hq.app.jobs.JobsViewModel
+import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.ListBlueprints
@@ -83,12 +84,13 @@ object AppServices {
                 EveAssetSource(http.value, staticTypeNames = staticTypeNames, assetCache = assetCache, clock = clock, locationNames = locationNames),
             )
         }
-        val assets = lazy { AssetsViewModel(listCharacters, ListAssets(assetSource.value), scope, Dispatchers.IO) }
+        val assetService = lazy { AssetService(assetSource.value, clock) }
+        val assets = lazy { AssetsViewModel(listCharacters, ListAssets(assetService.value), scope, Dispatchers.IO) }
         val stockpileRepository = JooqStockpileRepository(database.dataSource)
         val stockpiles = lazy {
             StockpilesViewModel(
                 listCharacters,
-                ListStockpiles(stockpileRepository, assetSource.value),
+                ListStockpiles(stockpileRepository, assetService.value),
                 stockpileRepository,
                 staticTypeNames,
                 scope,

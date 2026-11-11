@@ -1,6 +1,7 @@
 package eve.hq.features.support
 
 import eve.hq.core.asset.AssetListing
+import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.character.AddCharacter
@@ -37,6 +38,7 @@ import org.h2.jdbcx.JdbcDataSource
 import org.jdbscript.JDBEngine
 import java.security.SecureRandom
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -144,7 +146,8 @@ class FeatureSystem {
             clock,
             source,
         )
-        return ListAssets(refreshingSource)
+        // A zero window makes every listing reach the source, whose ESI-expiry rules these scenarios exercise.
+        return ListAssets(AssetService(refreshingSource, clock, Duration.ZERO))
     }
 }
 

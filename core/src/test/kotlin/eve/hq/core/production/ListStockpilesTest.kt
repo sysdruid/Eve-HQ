@@ -1,6 +1,8 @@
 package eve.hq.core.production
 
 import eve.hq.core.asset.AssetItem
+import eve.hq.core.asset.AssetService
+import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.asset.AssetLocation
 import eve.hq.core.asset.AssetSnapshot
@@ -8,9 +10,13 @@ import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
 import eve.hq.core.character.AuthToken
 import eve.hq.core.character.EveCharacter
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import java.io.IOException
+import java.time.Clock
 import java.time.Instant
 import kotlin.test.Test
 
@@ -112,4 +118,26 @@ class ListStockpilesTest {
 
     private fun asset(itemId: Long, typeId: Long, quantity: Int, location: Long) =
         AssetItem(itemId, AssetType(typeId, null), null, quantity, AssetLocation(location, null))
+
+    @Test
+    fun `two consumers of one asset service share a single load`() = runBlocking<Unit> {
+        stockpiles += crystals
+        assets[alice.id] = listOf(asset(1, crystals.item, 150, location = 9000))
+        var loads = 0
+        val service = AssetService(
+            AssetSource {
+                loads++
+                delay(10)
+                assets.getValue(it.id)
+            },
+            Clock.systemUTC(),
+        )
+
+        val assetTab = async { ListAssets(service)(listOf(alice)) }
+        val stockpileTab = async { ListStockpiles(repository, service)(listOf(alice)) }
+        awaitAll(assetTab, stockpileTab)
+
+        assertThat(loads).isEqualTo(1)
+        assertThat(stockpileTab.await().rows.single().onHand).isEqualTo(150)
+    }
 }

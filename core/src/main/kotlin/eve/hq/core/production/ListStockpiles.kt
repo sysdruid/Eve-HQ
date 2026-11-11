@@ -1,9 +1,11 @@
 package eve.hq.core.production
 
 import eve.hq.core.asset.AssetLoadFailure
+import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.AssetSource
-import eve.hq.core.attempt
+import eve.hq.core.asset.CharacterAssets
 import eve.hq.core.character.EveCharacter
+import java.time.Clock
 
 interface StockpileRepository {
     fun all(): List<Stockpile>
@@ -18,21 +20,19 @@ data class StockpileRow(val stockpile: Stockpile, val onHand: Long, val status: 
 
 data class StockpileListing(val rows: List<StockpileRow>, val failures: List<AssetLoadFailure> = emptyList())
 
-class ListStockpiles(private val stockpiles: StockpileRepository, private val assets: AssetSource) {
-    suspend operator fun invoke(characters: List<EveCharacter>): StockpileListing {
-        val results = characters.map { it to attempt { assets.load(it) } }
-        val failures = results.mapNotNull { (character, result) ->
-            result.exceptionOrNull()?.let { AssetLoadFailure(character.id, character.name, it.message ?: "Unable to load assets") }
-        }
-        // A failed character still counts from its last snapshot, so one outage does not make every stockpile look empty.
-        val items = results.flatMap { (character, result) ->
-            result.getOrElse { assets.cachedSnapshot(character.id)?.items.orEmpty() }
-        }
-        val onHand = items.groupBy { it.type.id }.mapValues { (_, owned) -> owned.sumOf { it.quantity.toLong() } }
+class ListStockpiles(private val stockpiles: StockpileRepository, private val assets: AssetService) {
+    constructor(stockpiles: StockpileRepository, source: AssetSource, clock: Clock = Clock.systemUTC()) :
+        this(stockpiles, AssetService(source, clock))
+
+    suspend operator fun invoke(characters: List<EveCharacter>, refresh: Boolean = false): StockpileListing {
+        val results = assets.assetsOf(characters, refresh)
+        val onHand = results.flatMap { it.snapshot?.items.orEmpty() }
+            .groupBy { it.type.id }
+            .mapValues { (_, owned) -> owned.sumOf { it.quantity.toLong() } }
         val rows = stockpiles.all().map { pile ->
             val quantity = onHand[pile.item] ?: 0
             StockpileRow(pile, quantity, pile.statusFor(quantity))
         }.sortedWith(compareBy({ it.status }, { it.stockpile.name.lowercase() }))
-        return StockpileListing(rows, failures)
+        return StockpileListing(rows, results.mapNotNull(CharacterAssets::failure))
     }
 }

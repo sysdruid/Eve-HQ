@@ -33,7 +33,7 @@ fun AssetsScreen(viewModel: AssetsViewModel) {
                 label = { Text("Search assets") },
                 singleLine = true,
             )
-            Button(onClick = viewModel::refresh, enabled = !state.loading) { Text("Refresh") }
+            Button(onClick = { viewModel.refresh() }, enabled = !state.loading) { Text("Refresh") }
         }
         if (state.loading) {
             Text("Loading assets…")

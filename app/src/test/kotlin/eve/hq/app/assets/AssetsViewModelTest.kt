@@ -30,7 +30,7 @@ class AssetsViewModelTest {
         val pending = CompletableDeferred<List<AssetItem>>()
         val viewModel = AssetsViewModel(
             ListCharacters(system.repository),
-            ListAssets { pending.await() },
+            ListAssets(AssetSource { pending.await() }),
             scope,
             dispatcher,
         )

@@ -42,14 +42,15 @@ class AssetsViewModel(
     private var refreshJob: Job? = null
 
     init {
-        refresh()
+        refresh(fetch = false)
     }
 
     fun setQuery(query: String) {
         _state.update { it.copy(query = query, items = searchAssets(allItems, query)) }
     }
 
-    fun refresh() {
+    /** [fetch] false accepts what the asset service already has fresh, as opening the tab does; the button forces it. */
+    fun refresh(fetch: Boolean = true) {
         if (refreshJob?.isActive == true) return
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
@@ -60,7 +61,7 @@ class AssetsViewModel(
                     allItems = cached.items
                     _state.update { it.copy(items = searchAssets(allItems, it.query), snapshots = cached.snapshots) }
                 }
-                val listing = withContext(io) { listAssets(characters) }
+                val listing = withContext(io) { listAssets(characters, refresh = fetch) }
                 val failedCharacters = listing.failures.mapTo(mutableSetOf(), AssetLoadFailure::characterName)
                 val returnedCharacters = listing.items.mapTo(mutableSetOf(), AssetRow::characterName)
                 allItems = listing.items + allItems.filter {

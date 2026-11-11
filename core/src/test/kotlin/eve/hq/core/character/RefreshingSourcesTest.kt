@@ -1,8 +1,5 @@
 package eve.hq.core.character
 
-import eve.hq.core.asset.AssetItem
-import eve.hq.core.asset.AssetSource
-import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.BlueprintSource
 import eve.hq.core.blueprint.OwnedBlueprint
 import eve.hq.core.blueprint.RefreshingBlueprintSource
@@ -48,13 +45,6 @@ class RefreshingSourcesTest {
     private fun loadTwiceAtOnce(load: suspend () -> Unit) = runBlocking<Unit> {
         List(2) { async { load() } }.awaitAll()
         assertThat(mostAtOnce.get()).isEqualTo(1)
-    }
-
-    @Test
-    fun `asset loads of one character do not overlap`() {
-        val source = RefreshingAssetSource(repository, refresh, clock, AssetSource { slow(emptyList<AssetItem>()) })
-
-        loadTwiceAtOnce { source.load(alice) }
     }
 
     @Test
