@@ -55,6 +55,7 @@ class Projects(
         ProjectId.AmarrShuttles -> FixedRequirementsProject(
             id.title,
             listOf(Requirement(items.id("Amarr Shuttle"), 1_000, "build 1000 shuttles")),
+            endProducts = setOf(items.id("Amarr Shuttle")),
         )
 
         // Everything the hull job needs is a goal: the components are built in phases, and the rest (the hull, the
@@ -62,6 +63,7 @@ class Projects(
         ProjectId.AnathemaInputs -> FixedRequirementsProject(
             id.title,
             inputsOfJobs(recipes, items.id("Anathema"), 500, "500 Anathema jobs"),
+            endProducts = setOf(items.id("Anathema")),
             buildRule = ::buildsComponentChain,
         )
 
@@ -78,6 +80,7 @@ class Projects(
                 "${mediumT2Hulls.jobs} cycle jobs of any of ${mediumT2Hulls.hulls.size} hulls",
             ),
             cycle = mediumT2Hulls.cycle,
+            endProducts = mediumT2Hulls.hulls.mapTo(linkedSetOf(), items::id),
             buildRule = ::buildsComponentChain,
         )
     }
@@ -87,6 +90,7 @@ class Projects(
         id.title,
         fixedRunRequirements(recipes, t3Cruisers.hulls.map(items::id), t3Cruisers.runs, "${t3Cruisers.runs} hulls of either kind"),
         cycle = t3Cruisers.cycle,
+        endProducts = t3Cruisers.hulls.mapTo(linkedSetOf(), items::id),
         buildRule = { item -> items.isGroup(item, "Hybrid Tech Components") || items.isGroup(item, "Hybrid Polymers") },
     )
 

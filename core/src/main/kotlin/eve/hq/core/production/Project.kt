@@ -23,6 +23,9 @@ interface Project {
 
     fun requirements(): List<Requirement>
 
+    /** The items this project exists to produce (the hulls); running jobs making them belong to it. */
+    val endProducts: Set<TypeId> get() = emptySet()
+
     /** The cycle this project plans in; its jobs are split so none runs longer than the cycle. Null: no limit. */
     val cycle: CycleSettings? get() = null
 }
@@ -32,6 +35,7 @@ class FixedRequirementsProject(
     override val name: String,
     private val required: List<Requirement>,
     override val cycle: CycleSettings? = null,
+    override val endProducts: Set<TypeId> = emptySet(),
     private val buildRule: (TypeId) -> Boolean = { true },
 ) : Project {
     override fun builds(item: TypeId) = buildRule(item)

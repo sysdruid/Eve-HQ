@@ -54,9 +54,21 @@ class ListJobsTest {
                 endsAt = now.plus(Duration.ofHours(2)),
                 status = JobStatus.Active,
                 facilityName = "Jita IV - Moon 4",
+                productId = 2,
             ),
         )
         assertThat(result.failures).isEmpty()
+    }
+
+    @Test
+    fun `a row keeps the type id of its product so it can be matched to a project, and none without a product`() = runBlocking<Unit> {
+        val source = JobSource {
+            listOf(aJob(productName = "Legion"), aJob(activity = IndustryActivity.MaterialEfficiency, productName = null))
+        }
+
+        val rows = ListJobs(source, clock)(listOf(alice)).rows
+
+        assertThat(rows.map { it.productId }).containsExactlyInAnyOrder(2L, null)
     }
 
     @Test
@@ -189,6 +201,7 @@ class ListJobsTest {
         endsAt = endsAt,
         status = status,
         facilityName = "Jita",
+        productId = null,
     )
 
     private fun aJob(

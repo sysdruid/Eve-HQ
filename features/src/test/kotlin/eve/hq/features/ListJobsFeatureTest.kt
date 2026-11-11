@@ -34,6 +34,7 @@ class ListJobsFeatureTest {
                 endsAt = Instant.parse("2026-11-08T14:00:00Z"),
                 status = JobStatus.Active,
                 facilityName = "Jita IV - Moon 4",
+                productId = 587,
             ),
         )
         system.esi.assertAnyRequest {

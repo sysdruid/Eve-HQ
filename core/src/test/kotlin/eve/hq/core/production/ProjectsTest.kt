@@ -150,4 +150,16 @@ class ProjectsTest {
         assertThat(listOf(nanowire, radarAmp, polymer).map(project::builds)).containsOnly(true)
         assertThat(listOf(ram, fuelBlock).map(project::builds)).containsOnly(false)
     }
+
+    @Test
+    fun `each project knows the items it exists to produce`() {
+        val projects = Projects(Items(t3Catalog + hullNames + catalog + tree), allRecipes, config, t3Config)
+
+        assertThat(projects.get(ProjectId.AmarrShuttles).endProducts).containsExactly(11134L)
+        assertThat(projects.get(ProjectId.MediumT2Hulls).endProducts).containsExactlyInAnyOrder(zealot, sacrilege)
+        assertThat(projects.get(ProjectId.T3Cruisers).endProducts).containsExactlyInAnyOrder(legion, tengu)
+        assertThat(projects.get(ProjectId.AnathemaInputs).endProducts).containsExactly(anathema)
+    }
+
+    private val allRecipes = RecipeBook { product -> listOf(hullRecipes, t3Recipes, anathemaRecipe).firstNotNullOfOrNull { it.forProduct(product) } }
 }
