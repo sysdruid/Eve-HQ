@@ -34,8 +34,10 @@ class RunTimes(
     private val rules: TimeRules,
     private val traits: List<CharacterTraits>,
     private val structures: Set<TypeId> = emptySet(),
+    /** The best time efficiency the owner has for a blueprint type, in percent. */
+    private val blueprintTe: (TypeId) -> Int = { 0 },
 ) {
-    fun modifiers(recipe: Recipe, blueprintTe: Int = 0): TimeModifiers {
+    fun modifiers(recipe: Recipe, blueprintTe: Int = this.blueprintTe(recipe.blueprint)): TimeModifiers {
         val structure = structureReduction(recipe.activity)
         return traits
             .map { character ->
@@ -80,7 +82,7 @@ class RunTimes(
         // movePointLeft is exact; a plain BigDecimal division would round 0.15 to the scale of 15.0.
         (BigDecimal(percent.toString()).negate() * BigDecimal(level)).movePointLeft(2).toDouble()
 
-    fun seconds(recipe: Recipe, runs: Long, blueprintTe: Int = 0): Long =
+    fun seconds(recipe: Recipe, runs: Long, blueprintTe: Int = this.blueprintTe(recipe.blueprint)): Long =
         modifiers(recipe, blueprintTe).seconds(recipe.secondsPerRun, runs)
 
     private companion object {

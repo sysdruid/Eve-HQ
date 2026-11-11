@@ -55,6 +55,7 @@ class ListJobsTest {
                 status = JobStatus.Active,
                 facilityName = "Jita IV - Moon 4",
                 productId = 2,
+                facilityId = 60003760,
             ),
         )
         assertThat(result.failures).isEmpty()
@@ -202,6 +203,7 @@ class ListJobsTest {
         status = status,
         facilityName = "Jita",
         productId = null,
+        facilityId = 60003760,
     )
 
     private fun aJob(
@@ -225,4 +227,11 @@ class ListJobsTest {
         status = status,
         facility = JobFacility(60003760, facilityName),
     )
+
+    @Test
+    fun `a row keeps the id of the facility the job runs in, to look up its structure`() = runBlocking<Unit> {
+        val rows = ListJobs(JobSource { listOf(aJob()) }, clock)(listOf(alice)).rows
+
+        assertThat(rows.single().facilityId).isEqualTo(60003760L)
+    }
 }
