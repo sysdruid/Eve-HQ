@@ -24,6 +24,13 @@
   by item group), so a phase is just the depth in the plan, with the deepest depth winning, and the group filter was really
   a build-or-buy rule. Stop items became a per-project `builds(item)` predicate written with plain booleans over
   `isGroup`/`isItem`, instead of a combinator type. Phases run in parallel by design; the plan never implies an order.
+- Meeting in the middle (a simple shuttle project and a complex Anathema one, plus the screen they need) exposed a real
+  bug before any UI existed: the owner's database held blueprints but no recipes, because an import marked current before
+  the recipe tables existed kept answering "up to date". A migration now forgets the saved validators. The SDE also made a
+  product ambiguous (a development blueprint makes Tungsten Carbide too); only published blueprints count, which resolved all
+  five ambiguous products, and anything still ambiguous fails loudly.
+- The probe on the real data also showed the unmodified engine already plans the whole Anathema tree to raw materials in
+  five phases.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

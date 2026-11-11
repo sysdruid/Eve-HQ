@@ -24,6 +24,7 @@ fun Dashboard(viewModels: AppViewModels) {
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Jobs") })
             Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Blueprints") })
             Tab(selected = selectedTab == 4, onClick = { selectedTab = 4 }, text = { Text("Stockpiles") })
+            Tab(selected = selectedTab == 5, onClick = { selectedTab = 5 }, text = { Text("Projects") })
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (selectedTab) {
@@ -35,6 +36,7 @@ fun Dashboard(viewModels: AppViewModels) {
                     viewModels.assets.value.setQuery(itemName)
                     selectedTab = 1
                 }
+                5 -> ProjectsScreen(viewModels.projects.value)
             }
         }
     }

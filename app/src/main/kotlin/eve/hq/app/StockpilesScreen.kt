@@ -127,14 +127,14 @@ private fun LevelField(label: String, value: String, onChange: (String) -> Unit,
     OutlinedTextField(value = value, onValueChange = onChange, modifier = modifier, label = { Text(label) }, singleLine = true)
 }
 
-private fun statusLabel(status: StockpileStatus) = when (status) {
+internal fun statusLabel(status: StockpileStatus) = when (status) {
     StockpileStatus.BelowRequired -> "LOW"
     StockpileStatus.BelowPreferred -> "LOWISH"
     StockpileStatus.AboveOverflow -> "SURPLUS"
     StockpileStatus.Ok -> "OK"
 }
 
-private fun statusColor(status: StockpileStatus) = when (status) {
+internal fun statusColor(status: StockpileStatus) = when (status) {
     StockpileStatus.BelowRequired -> Color(0xFFC62828)
     StockpileStatus.BelowPreferred -> Color(0xFFEF6C00)
     StockpileStatus.AboveOverflow -> Color(0xFF1565C0)
