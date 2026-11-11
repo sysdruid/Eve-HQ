@@ -66,13 +66,13 @@ class ProjectsViewModelTest {
         pending.complete(listOf(tritanium(1_000)))
         val state = viewModel.state.value
         assertThat(state.loading).isFalse()
-        assertThat(state.title).isEqualTo("10 Amarr Shuttles")
-        assertThat(state.goals).containsExactly("10 × Amarr Shuttle")
+        assertThat(state.title).isEqualTo("1000 Amarr Shuttles")
+        assertThat(state.goals).containsExactly("1,000 × Amarr Shuttle")
         assertThat(state.phases).containsExactly(
-            PhaseBlock("Phase 1", listOf("Amarr Shuttle Blueprint  10 runs × 1h 40m  → Amarr Shuttle")),
+            PhaseBlock("Phase 1", listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m  → Amarr Shuttle")),
         )
         assertThat(state.shopping).containsExactly(
-            ShoppingLine("Tritanium  need 27,780  on hand 1,000  short 26,780", StockpileStatus.BelowRequired),
+            ShoppingLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
         )
     }
 

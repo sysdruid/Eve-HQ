@@ -8,11 +8,11 @@ class ProjectsTest {
     private val catalog = FakeItemCatalog(names = mapOf(11134L to "Amarr Shuttle", 34L to "Tritanium"))
 
     @Test
-    fun `the shuttle project requires ten shuttles`() {
+    fun `the shuttle project requires a thousand shuttles`() {
         val project = Projects(Items(catalog)).get(ProjectId.AmarrShuttles)
 
-        assertThat(project.name).isEqualTo("10 Amarr Shuttles")
-        assertThat(project.requirements()).containsExactly(Requirement(11134, 10, "build 10 shuttles"))
+        assertThat(project.name).isEqualTo("1000 Amarr Shuttles")
+        assertThat(project.requirements()).containsExactly(Requirement(11134, 1_000, "build 1000 shuttles"))
     }
 
     @Test

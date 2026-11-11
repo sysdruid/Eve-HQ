@@ -30,18 +30,18 @@ class PlanProjectTest {
         AssetItem(itemId, AssetType(tritanium, "Tritanium"), null, quantity, AssetLocation(60000001, "Jita IV"))
 
     @Test
-    fun `the shuttle project is ten runs against stock pooled over all characters`() = runBlocking<Unit> {
+    fun `the shuttle project is a thousand runs against stock pooled over all characters`() = runBlocking<Unit> {
         holdings[alice.id] = Result.success(listOf(tritanium(1, 600)))
         holdings[bob.id] = Result.success(listOf(tritanium(2, 400)))
 
         val result = planProject(ProjectId.AmarrShuttles, listOf(alice, bob))
 
-        assertThat(result.plan.jobs).containsExactly(PlannedJob(shuttle, 10, setOf("10 Amarr Shuttles"), 1, 11135, 6000))
+        assertThat(result.plan.jobs).containsExactly(PlannedJob(shuttle, 1_000, setOf("1000 Amarr Shuttles"), 1, 11135, 6000))
         val shopping = result.plan.shoppingList.single()
         assertThat(shopping.item).isEqualTo(tritanium)
-        assertThat(shopping.required).isEqualTo(27_780)
+        assertThat(shopping.required).isEqualTo(2_778_000)
         assertThat(shopping.onHand).isEqualTo(1_000)
-        assertThat(shopping.deficit).isEqualTo(26_780)
+        assertThat(shopping.deficit).isEqualTo(2_777_000)
         assertThat(result.failures).isEmpty()
     }
 

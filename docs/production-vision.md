@@ -153,7 +153,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 2. Done: manual stockpiles (levels, status, optional station, tab), and `AssetService` for pooled assets.
 3. Projects and the engine. Done: `Project` with requirements and a build rule, summing demand per item and netting stock
    once, contributions, the shopping list as a view, phases as depth, recipe and item adapters over the SDE (published
-   blueprints only), and a Projects tab showing one code-defined project (10 Amarr Shuttles) end to end. Next: a computed
+   blueprints only), and a Projects tab showing one code-defined project (1000 Amarr Shuttles) end to end. Next: a computed
    goal ("the inputs of N jobs of X", all of them: built ones in phases, the rest to buy), more projects, then the aggregated
    shopping list over all projects, copy buttons and the per-item contributions on click.
 3b. Readiness goals: explicit hull list, per-job run counts from the speed multiplier, max over members x scale, direct
