@@ -12,10 +12,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -49,25 +54,45 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            item { Text("Goals", style = MaterialTheme.typography.titleMedium) }
-            items(state.goals) { Text(it) }
-            state.phases.forEach { phase ->
-                item {
-                    Text(
-                        "${phase.title} (runs in parallel with the other phases)",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-                items(phase.jobs) { Text(it) }
+        // Goals, one tab per phase, then the shopping list; the phases run in parallel, so they are tabs, not steps.
+        val lastTab = state.phases.size + 1
+        var selectedTab by remember(state.selected) { mutableIntStateOf(0) }
+        val tab = selectedTab.coerceIn(0, lastTab)
+        PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
+            Tab(selected = tab == 0, onClick = { selectedTab = 0 }, text = { Text("Goals (${state.goals.size})") })
+            state.phases.forEachIndexed { index, phase ->
+                Tab(
+                    selected = tab == index + 1,
+                    onClick = { selectedTab = index + 1 },
+                    text = { Text("${phase.title} (${phase.jobs.size})") },
+                )
             }
-            item { Text("Shopping list", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
-            if (state.shopping.isEmpty() && !state.loading && state.error == null) item { Text("Nothing to buy.") }
-            items(state.shopping) { line ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(statusLabel(line.status), color = statusColor(line.status))
-                    Text(line.text)
+            Tab(
+                selected = tab == lastTab,
+                onClick = { selectedTab = lastTab },
+                text = { Text("Shopping list (${state.shopping.size})") },
+            )
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            when (tab) {
+                0 -> items(state.goals) { Text(it) }
+                lastTab -> {
+                    if (state.shopping.isEmpty() && !state.loading && state.error == null) item { Text("Nothing to buy.") }
+                    items(state.shopping) { line ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(statusLabel(line.status), color = statusColor(line.status))
+                            Text(line.text)
+                        }
+                    }
+                }
+                else -> {
+                    item {
+                        Text(
+                            "Runs in parallel with the other phases.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    items(state.phases[tab - 1].jobs) { Text(it) }
                 }
             }
         }

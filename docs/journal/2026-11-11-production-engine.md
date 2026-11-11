@@ -31,6 +31,12 @@
   five ambiguous products, and anything still ambiguous fails loudly.
 - The probe on the real data also showed the unmodified engine already plans the whole Anathema tree to raw materials in
   five phases.
+- First real use: planning the Anathema project took minutes. Timing the planner on the real database showed it was not
+  the algorithm: 150 recipe and 245 group lookups cost 0.3 to 0.5 s each, because H2 closes an embedded database when the
+  last connection closes and every query used a short-lived connection, so each lookup reopened the file. A ten second idle
+  delay (`DB_CLOSE_DELAY`) took planning from 145 s to 0.4 s and still frees the file lock for the import command. A global
+  temporary table, which H2 drops on close, makes a cheap regression test for "stayed open". Tests that simulate an app
+  restart by reopening the same directory need the delay switched off.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written
