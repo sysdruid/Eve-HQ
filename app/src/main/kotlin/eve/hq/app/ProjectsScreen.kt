@@ -54,29 +54,26 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        // Goals, one tab per phase, then the shopping list; the phases run in parallel, so they are tabs, not steps.
-        val lastTab = state.phases.size + 1
+        // Goals, the shopping list (what to get before anything starts), then one tab per phase; the phases run in
+        // parallel, so they are tabs, not steps.
+        val lastTab = state.phases.size + 1 // goals and the shopping list are tabs 0 and 1, the phases follow
         var selectedTab by remember(state.selected) { mutableIntStateOf(0) }
         val tab = selectedTab.coerceIn(0, lastTab)
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
             Tab(selected = tab == 0, onClick = { selectedTab = 0 }, text = { Text("Goals (${state.goals.size})") })
+            Tab(selected = tab == 1, onClick = { selectedTab = 1 }, text = { Text("Shopping list (${state.shopping.size})") })
             state.phases.forEachIndexed { index, phase ->
                 Tab(
-                    selected = tab == index + 1,
-                    onClick = { selectedTab = index + 1 },
+                    selected = tab == index + 2,
+                    onClick = { selectedTab = index + 2 },
                     text = { Text("${phase.title} (${phase.jobs.size})") },
                 )
             }
-            Tab(
-                selected = tab == lastTab,
-                onClick = { selectedTab = lastTab },
-                text = { Text("Shopping list (${state.shopping.size})") },
-            )
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (tab) {
                 0 -> items(state.goals) { Text(it) }
-                lastTab -> {
+                1 -> {
                     if (state.shopping.isEmpty() && !state.loading && state.error == null) item { Text("Nothing to buy.") }
                     items(state.shopping) { line ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -92,7 +89,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    items(state.phases[tab - 1].jobs) { Text(it) }
+                    items(state.phases[tab - 2].jobs) { Text(it) }
                 }
             }
         }
