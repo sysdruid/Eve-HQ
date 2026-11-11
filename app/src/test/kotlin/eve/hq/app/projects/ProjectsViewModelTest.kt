@@ -118,8 +118,8 @@ class ProjectsViewModelTest {
 
         val state = viewModel.state.value
         assertThat(state.selected).isEqualTo(ProjectId.AnathemaInputs)
-        assertThat(state.title).isEqualTo("Inputs for 10 Anathemas")
-        assertThat(state.goals).containsExactly("3,000 × Tungsten Carbide Armor Plate")
+        assertThat(state.title).isEqualTo("Inputs for 500 Anathemas")
+        assertThat(state.goals).containsExactly("150,000 × Tungsten Carbide Armor Plate")
         assertThat(state.loading).isFalse()
     }
 
@@ -133,6 +133,6 @@ class ProjectsViewModelTest {
         viewModel.select(ProjectId.AnathemaInputs)
         pending.complete(emptyList())
 
-        assertThat(viewModel.state.value.title).isEqualTo("Inputs for 10 Anathemas")
+        assertThat(viewModel.state.value.title).isEqualTo("Inputs for 500 Anathemas")
     }
 }

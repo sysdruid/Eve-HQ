@@ -153,7 +153,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 2. Done: manual stockpiles (levels, status, optional station, tab), and `AssetService` for pooled assets.
 3. Projects and the engine. Done: `Project` with requirements and a build rule, summing demand per item and netting stock
    once, contributions, the shopping list as a view, phases as depth, recipe and item adapters over the SDE (published
-   blueprints only), a Projects tab with a project picker, two code-defined projects (1000 Amarr Shuttles; the inputs of ten
+   blueprints only), a Projects tab with a project picker, two code-defined projects (1000 Amarr Shuttles; the inputs of five hundred
    Anathema jobs, built from the reusable `inputsOfJobs` goal: components, composites and intermediates are built in phases,
    everything else is bought) and the Anathema build rule written from the real groups in its tree. Next: the aggregated
    shopping list over all projects, copy buttons and the per-item contributions on click, then more projects.

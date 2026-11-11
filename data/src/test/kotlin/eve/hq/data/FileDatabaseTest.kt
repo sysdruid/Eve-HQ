@@ -17,6 +17,10 @@ import kotlin.test.assertFailsWith
 class FileDatabaseTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-08T10:00:00Z"), ZoneOffset.UTC)
 
+    // A restart closes the database; without an idle delay, opening it again in the test is the same thing.
+    private fun restart(dir: Path, migrationLocation: String = Migrations.DEFAULT_LOCATION) =
+        FileDatabase.open(dir, clock, migrationLocation, idleCloseSeconds = 0)
+
     private val cipher = TokenCipher(ByteArray(32) { it.toByte() })
 
     private fun repository(dataSource: javax.sql.DataSource) = JooqCharacterRepository(dataSource, cipher)
@@ -29,12 +33,37 @@ class FileDatabaseTest {
 
     @Test
     fun `given characters stored in the database file, when it is reopened, they are still listed`(@TempDir dir: Path) {
-        val first = FileDatabase.open(dir, clock)
+        val first = restart(dir)
         repository(first.dataSource).save(alice)
 
-        val reopened = FileDatabase.open(dir, clock)
+        val reopened = restart(dir)
 
         assertEquals(listOf(alice), repository(reopened.dataSource).all())
+    }
+
+    // Regression guard: every query opens a short-lived connection, and H2 closes the file when the last one closes, so a
+    // burst of lookups reopened the whole database each time (about 0.3 s per query, minutes for one project plan).
+    // H2 drops global temporary tables when it closes the database, which makes one a probe for "stayed open".
+    @Test
+    fun `the database stays open between short-lived connections`(@TempDir dir: Path) {
+        val database = FileDatabase.open(dir, clock)
+        database.dataSource.connection.use { connection ->
+            connection.createStatement().use {
+                it.execute("create global temporary table open_probe (x int)")
+                it.execute("insert into open_probe values (1)")
+            }
+        }
+
+        val rows = database.dataSource.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select count(*) from open_probe").use { result ->
+                    result.next()
+                    result.getInt(1)
+                }
+            }
+        }
+
+        assertEquals(1, rows)
     }
 
     private fun scripts(dir: Path, name: String, vararg files: Pair<String, String>): String {
@@ -55,9 +84,9 @@ class FileDatabaseTest {
     fun `given an existing database with pending migrations, a backup copy is made before migrating`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val withV2 = scripts(dir, "v1-and-v2", v1, v2)
-        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
+        repository(restart(dir, onlyV1).dataSource).save(alice)
 
-        FileDatabase.open(dir, clock, withV2)
+        restart(dir, withV2)
 
         assertEquals(listOf("eve-hq-20261108T100000Z.mv.db"), backups(dir).map { it.fileName.toString() })
     }
@@ -80,8 +109,8 @@ class FileDatabaseTest {
     fun `the backup holds the data as it was before the migration`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val withV2 = scripts(dir, "v1-and-v2", v1, v2)
-        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
-        FileDatabase.open(dir, clock, withV2)
+        repository(restart(dir, onlyV1).dataSource).save(alice)
+        restart(dir, withV2)
 
         val (names, tables) = inspect(backups(dir).single())
 
@@ -91,16 +120,16 @@ class FileDatabaseTest {
 
     @Test
     fun `given a new database, no backup is made`(@TempDir dir: Path) {
-        FileDatabase.open(dir, clock)
+        restart(dir)
 
         assertThat(backups(dir)).isEmpty()
     }
 
     @Test
     fun `given nothing to migrate, no backup is made`(@TempDir dir: Path) {
-        FileDatabase.open(dir, clock)
+        restart(dir)
 
-        FileDatabase.open(dir, clock)
+        restart(dir)
 
         assertThat(backups(dir)).isEmpty()
     }
@@ -109,9 +138,9 @@ class FileDatabaseTest {
     fun `given a migration that fails, the error is reported and the backup keeps the earlier data`(@TempDir dir: Path) {
         val onlyV1 = scripts(dir, "v1-only", v1)
         val broken = scripts(dir, "v1-and-broken", v1, "V2__broken.sql" to "THIS IS NOT SQL;")
-        repository(FileDatabase.open(dir, clock, onlyV1).dataSource).save(alice)
+        repository(restart(dir, onlyV1).dataSource).save(alice)
 
-        assertFailsWith<Exception> { FileDatabase.open(dir, clock, broken) }
+        assertFailsWith<Exception> { restart(dir, broken) }
 
         assertEquals(listOf("Alice"), inspect(backups(dir).single()).first)
     }
@@ -122,9 +151,9 @@ class FileDatabaseTest {
 
     @Test
     fun `widening the token columns keeps existing characters and keeps the columns required`(@TempDir dir: Path) {
-        repository(FileDatabase.open(dir, clock, scripts(dir, "v1-only", v1)).dataSource).save(alice)
+        repository(restart(dir, scripts(dir, "v1-only", v1)).dataSource).save(alice)
 
-        val migrated = FileDatabase.open(dir, clock, scripts(dir, "v1-and-v2", v1, v2Widen))
+        val migrated = restart(dir, scripts(dir, "v1-and-v2", v1, v2Widen))
 
         assertEquals(listOf(alice), repository(migrated.dataSource).all())
         val nullable = migrated.dataSource.connection.use { c ->

@@ -3,7 +3,7 @@ package eve.hq.core.production
 /** The code-defined projects; the enum entry is a project's id and its [title] what the owner sees. */
 enum class ProjectId(val title: String) {
     AmarrShuttles("1000 Amarr Shuttles"),
-    AnathemaInputs("Inputs for 10 Anathemas"),
+    AnathemaInputs("Inputs for 500 Anathemas"),
 }
 
 class Projects(private val items: Items, private val recipes: RecipeBook) {
@@ -17,7 +17,7 @@ class Projects(private val items: Items, private val recipes: RecipeBook) {
         // tool, commodities) is only needed on hand, so it is bought.
         ProjectId.AnathemaInputs -> FixedRequirementsProject(
             id.title,
-            inputsOfJobs(recipes, items.id("Anathema"), 10, "10 Anathema jobs"),
+            inputsOfJobs(recipes, items.id("Anathema"), 500, "500 Anathema jobs"),
         ) { item ->
             items.isGroup(item, "Construction Components") ||
                 items.isGroup(item, "Composite") ||

@@ -47,14 +47,14 @@ class ProjectsTest {
     }
 
     @Test
-    fun `the anathema project requires every direct input of ten jobs`() {
+    fun `the anathema project requires every direct input of five hundred jobs`() {
         val project = Projects(Items(tree), anathemaRecipe).get(ProjectId.AnathemaInputs)
 
-        assertThat(project.name).isEqualTo("Inputs for 10 Anathemas")
+        assertThat(project.name).isEqualTo("Inputs for 500 Anathemas")
         assertThat(project.requirements()).containsExactlyInAnyOrder(
-            Requirement(plate, 3_000, "10 Anathema jobs"),
-            Requirement(magnate, 10, "10 Anathema jobs"),
-            Requirement(tool, 30, "10 Anathema jobs"),
+            Requirement(plate, 150_000, "500 Anathema jobs"),
+            Requirement(magnate, 500, "500 Anathema jobs"),
+            Requirement(tool, 1_500, "500 Anathema jobs"),
         )
     }
 
