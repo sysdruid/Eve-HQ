@@ -61,6 +61,30 @@ class EveAssetSourceTest {
     }
 
     @Test
+    fun `while every page is fresh the saved snapshot is returned without any request`() = runBlocking {
+        val now = Instant.parse("2026-11-08T12:00:00Z")
+        val body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""
+        val saved = listOf(AssetItem(101, AssetType(34, "Tritanium"), null, 1, AssetLocation(60000001, "Jita")))
+        val cache = MemoryAssetCache(CachedAssetPage(1, body, "\"assets-v1\"", now.plusSeconds(3600), 1))
+        cache.replace(123, AssetSnapshot(saved, now.minusSeconds(60)), listOf(CachedAssetPage(1, body, "\"assets-v1\"", now.plusSeconds(3600), 1)))
+        val esi = EsiMock {
+            characterAssets(123).willReturn(body)
+            universeNames().willReturn("[]")
+            characterAssetNames(123).willReturn("[]")
+            universeStations(60000001).willReturn("""{"name":"Elsewhere"}""")
+        }
+        val source = EveAssetSource(esi.client, esi.baseUrl, assetCache = cache, clock = Clock.fixed(now, ZoneOffset.UTC))
+
+        val result = source.load(EveCharacter(123, "Alice", AuthToken("access", "refresh", Instant.MAX)))
+
+        assertEquals(saved, result)
+        esi.characterAssets(123).assertNotRequested()
+        esi.universeNames().assertNotRequested()
+        esi.characterAssetNames(123).assertNotRequested()
+        esi.universeStations(60000001).assertNotRequested()
+    }
+
+    @Test
     fun `expired asset pages send their etag and reuse the saved body on not modified`() = runBlocking {
         val now = Instant.parse("2026-11-08T12:00:00Z")
         val body = """[{"item_id":101,"type_id":34,"quantity":1,"location_id":60000001,"location_type":"station"}]"""

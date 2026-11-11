@@ -47,6 +47,7 @@ class EveAssetSource(
     override fun cachedSnapshot(characterId: Long) = assetCache?.findSnapshot(characterId)
 
     override suspend fun load(character: EveCharacter): List<AssetItem> {
+        freshSnapshot(character.id)?.let { return it.items }
         val loadedPages = loadPages(character)
         val assets = loadedPages.assets
         val typeIds = assets.map(EsiAsset::typeId).distinct()
@@ -68,6 +69,14 @@ class EveAssetSource(
         }
         assetCache?.replace(character.id, AssetSnapshot(items, clock.instant()), loadedPages.pages)
         return items
+    }
+
+    /** ESI cannot have changed while every page is unexpired, so the saved snapshot (names included) is still exact. */
+    private fun freshSnapshot(characterId: Long): AssetSnapshot? {
+        val cache = assetCache ?: return null
+        val pageCount = cache.findPage(characterId, 1)?.pageCount ?: return null
+        val allFresh = (1..pageCount).all { cache.findPage(characterId, it)?.expiresAt?.isAfter(clock.instant()) == true }
+        return if (allFresh) cache.findSnapshot(characterId) else null
     }
 
     private suspend fun loadPages(character: EveCharacter): LoadedAssetPages {
