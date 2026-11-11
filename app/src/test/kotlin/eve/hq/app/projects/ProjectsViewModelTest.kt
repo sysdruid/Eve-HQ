@@ -7,6 +7,8 @@ import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.AssetSource
 import eve.hq.core.asset.AssetType
 import eve.hq.core.character.ListCharacters
+import eve.hq.core.blueprint.BlueprintSource
+import eve.hq.core.character.LoginRequired
 import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.industry.IndustryJob
 import eve.hq.core.industry.JobFacility
@@ -14,6 +16,7 @@ import eve.hq.core.industry.JobItem
 import eve.hq.core.industry.JobSource
 import eve.hq.core.industry.JobStatus
 import eve.hq.core.industry.ListJobs
+import eve.hq.core.production.ImplantSource
 import eve.hq.core.production.ItemCatalog
 import eve.hq.core.production.Items
 import eve.hq.core.production.PlanProject
@@ -21,6 +24,10 @@ import eve.hq.core.production.ProjectId
 import eve.hq.core.production.Projects
 import eve.hq.core.production.Recipe
 import eve.hq.core.production.RecipeBook
+import eve.hq.core.production.RunTimeService
+import eve.hq.core.production.SkillSource
+import eve.hq.core.production.StructureTypes
+import eve.hq.core.production.TimeRules
 import eve.hq.core.production.StockpileStatus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -74,11 +81,26 @@ class ProjectsViewModelTest {
         status = JobStatus.Active, facility = JobFacility(1, "Raitaru"),
     )
 
+    private var skillsFail = false
+    private var industryLevel = 0
+    private val runTimeService = RunTimeService(
+        object : TimeRules {
+            override fun bonus(type: Long, attribute: Int): Double? = if (type == 3380L && attribute == 440) -4.0 else null
+
+            override fun requiredSkills(blueprint: Long, activity: IndustryActivity) = emptyMap<Long, Int>()
+        },
+        SkillSource { if (skillsFail) throw LoginRequired("EVE denied skill access.") else mapOf(3380L to industryLevel) },
+        ImplantSource { emptySet() },
+        StructureTypes { _, _ -> null },
+        BlueprintSource { emptyList() },
+        clock,
+    )
+
     private fun viewModel(): ProjectsViewModel {
         val projects = Projects(Items(catalog), recipes)
         return ProjectsViewModel(
             ListCharacters(system.repository),
-            PlanProject(projects, recipes, service, ListJobs(jobSource, clock), clock),
+            PlanProject(projects, recipes, service, ListJobs(jobSource, clock), clock, runTimeService),
             catalog,
             clock,
             scope,
@@ -233,5 +255,28 @@ class ProjectsViewModelTest {
         assertThat(state.phases.map { it.title }).containsExactly("Phase 1")
         assertThat(state.phases.single().toStart).isEmpty()
         assertThat(state.phases.single().running).hasSize(1)
+    }
+
+    @Test
+    fun `job times follow the character's skills`() {
+        system.store(1, "Alice")
+        industryLevel = 5
+
+        val state = viewModel().state.value
+
+        // Industry V is 20% off a 6000 s run: 1,000 runs take 4,800,000 s = 55d 13h.
+        assertThat(state.phases.single().toStart.single()).contains("1,000 runs × 1h 20m = 55d 13h")
+        assertThat(state.timeFailures).isEmpty()
+    }
+
+    @Test
+    fun `a character whose skills cannot be read is reported and jobs show their base time`() {
+        system.store(1, "Alice")
+        skillsFail = true
+
+        val state = viewModel().state.value
+
+        assertThat(state.phases.single().toStart.single()).contains("1,000 runs × 1h 40m = 69d 10h")
+        assertThat(state.timeFailures.single().message).isEqualTo("EVE denied skill access.")
     }
 }

@@ -48,6 +48,12 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        state.timeFailures.forEach { failure ->
+            Text(
+                "${failure.characterName}: ${failure.message} (job times may be longer than in the game)",
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         state.failures.forEach { failure ->
             Text(
                 "${failure.characterName}: ${failure.message} (on hand may be too low)",

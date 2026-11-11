@@ -8,6 +8,7 @@ import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
 import eve.hq.core.production.ItemCatalog
+import eve.hq.core.production.TimeInputFailure
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.ProjectId
 import eve.hq.core.production.StockpileStatus
@@ -53,6 +54,8 @@ data class ProjectsUiState(
     val hullJobs: List<JobLine> = emptyList(),
     val hullJobsSummary: String = "",
     val jobFailures: List<JobLoadFailure> = emptyList(),
+    /** Characters whose skills or blueprints could not be read: job times may then be longer than in the game. */
+    val timeFailures: List<TimeInputFailure> = emptyList(),
     val error: String? = null,
 )
 
@@ -112,6 +115,7 @@ class ProjectsViewModel(
                         hullJobs = hullRows.map { row -> row.toLine(now) },
                         hullJobsSummary = summary(hullRows),
                         jobFailures = result.jobFailures,
+                        timeFailures = result.timeFailures,
                     )
                 }
             } catch (e: CancellationException) {
@@ -129,6 +133,7 @@ class ProjectsViewModel(
                         hullJobs = emptyList(),
                         hullJobsSummary = "",
                         jobFailures = emptyList(),
+                        timeFailures = emptyList(),
                         error = e.message ?: "Unable to plan the project",
                     )
                 }

@@ -10,12 +10,17 @@ import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.ListBlueprints
+import eve.hq.core.production.ImplantSource
 import eve.hq.core.production.Items
 import eve.hq.core.production.ListStockpiles
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.Projects
+import eve.hq.core.production.RunTimeService
+import eve.hq.core.production.SkillSource
+import eve.hq.core.production.StructureTypes
 import eve.hq.core.blueprint.RefreshingBlueprintSource
 import eve.hq.core.character.AddCharacter
+import eve.hq.core.character.FreshCharacter
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.character.RefreshCharacterToken
 import eve.hq.core.character.RemoveCharacter
@@ -28,6 +33,7 @@ import eve.hq.data.JooqBlueprintPageCache
 import eve.hq.data.JooqStockpileRepository
 import eve.hq.data.StaticItemCatalog
 import eve.hq.data.StaticRecipeBook
+import eve.hq.data.StaticTimeRules
 import eve.hq.data.JooqCharacterRepository
 import eve.hq.data.JooqJobPageCache
 import eve.hq.data.JooqLocationNameCache
@@ -36,6 +42,9 @@ import eve.hq.data.StaticTypeNameRepository
 import eve.hq.data.TokenCipher
 import eve.hq.data.esi.EveAssetSource
 import eve.hq.data.esi.EveBlueprintSource
+import eve.hq.data.esi.EveImplantSource
+import eve.hq.data.esi.EveSkillSource
+import eve.hq.data.esi.EveStructureTypes
 import eve.hq.data.esi.EveJobSource
 import eve.hq.data.sso.EveSsoAuthenticator
 import eve.hq.data.sso.EveTokenRefresher
@@ -116,8 +125,8 @@ object AppServices {
         val jobs = lazy {
             JobsViewModel(listCharacters, listJobs.value, clock, scope, Dispatchers.IO)
         }
-        val blueprints = lazy {
-            val source = RefreshingBlueprintSource(
+        val blueprintSource = lazy {
+            RefreshingBlueprintSource(
                 repository,
                 refreshToken.value,
                 clock,
@@ -130,7 +139,24 @@ object AppServices {
                     clock = clock,
                 ),
             )
-            BlueprintsViewModel(listCharacters, ListBlueprints(source, jobSource.value), clock, scope, Dispatchers.IO)
+        }
+        val blueprints = lazy {
+            BlueprintsViewModel(listCharacters, ListBlueprints(blueprintSource.value, jobSource.value), clock, scope, Dispatchers.IO)
+        }
+        // Skills, implants and structure types are read with a fresh token, like every other character read.
+        val runTimeService = lazy {
+            val fresh = FreshCharacter(repository, refreshToken.value, clock)
+            val eveSkills = EveSkillSource(http.value)
+            val eveImplants = EveImplantSource(http.value)
+            val eveStructures = EveStructureTypes(http.value)
+            RunTimeService(
+                StaticTimeRules(database.dataSource),
+                SkillSource { eveSkills.levels(fresh(it)) },
+                ImplantSource { eveImplants.implants(fresh(it)) },
+                StructureTypes { character, facility -> eveStructures.typeOf(fresh(character), facility) },
+                blueprintSource.value,
+                clock,
+            )
         }
         val staticItems = StaticItemCatalog(database.dataSource)
         val recipeBook = StaticRecipeBook(database.dataSource)
@@ -138,7 +164,7 @@ object AppServices {
             val definitions = Projects(Items(staticItems), recipeBook)
             ProjectsViewModel(
                 listCharacters,
-                PlanProject(definitions, recipeBook, assetService.value, listJobs.value, clock),
+                PlanProject(definitions, recipeBook, assetService.value, listJobs.value, clock, runTimeService.value),
                 staticItems,
                 clock,
                 scope,
