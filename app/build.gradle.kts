@@ -17,6 +17,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.assertj.core)
     testImplementation(libs.h2)
+    testImplementation(libs.ktor.client.mock)
 }
 
 compose.desktop {
