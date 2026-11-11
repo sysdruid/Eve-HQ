@@ -2,6 +2,7 @@ package eve.hq.core.production
 
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Duration
 
 /**
  * Everything that shortens a job. Each reduction multiplies the time, they do not add up: a 20% blueprint and a 15%
@@ -23,6 +24,12 @@ data class TimeModifiers(
     val factor: BigDecimal
         get() = (listOf(blueprintTe / 100.0) + skills + implants + structure)
             .fold(BigDecimal.ONE) { product, reduction -> product * (BigDecimal.ONE - BigDecimal(reduction.toString())) }
+
+    /** The most whole runs of a blueprint with [baseSecondsPerRun] that fit in [within]; a single run longer than it is still one. */
+    fun maxRuns(baseSecondsPerRun: Int, within: Duration): Long {
+        val fitting = BigDecimal(within.seconds).divideToIntegralValue(BigDecimal(baseSecondsPerRun) * factor)
+        return maxOf(1L, fitting.toLong())
+    }
 
     /** How long [runs] runs of a blueprint with [baseSecondsPerRun] take, rounded once at the end, not per run. */
     fun seconds(baseSecondsPerRun: Int, runs: Long): Long =

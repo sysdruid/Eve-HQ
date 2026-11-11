@@ -83,7 +83,7 @@ class ProjectsTest {
     }
     private val config = ReadinessConfig(
         hulls = listOf("Zealot", "Sacrilege"),
-        cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4),
+        cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
         jobs = 10,
     )
 
@@ -91,9 +91,10 @@ class ProjectsTest {
     fun `the medium hull project is ready for jobs of any listed hull in the configured cycle`() {
         val project = Projects(Items(hullNames), hullRecipes, config).get(ProjectId.MediumT2Hulls)
 
-        // plate: largest of 300 x 5 runs and 200 x 4 runs = 1500; datacore 5 x 4 = 20; both x 1.4 speed x 10 jobs.
+        // 14 days less 12 hours: 4 runs of the 240,000 s hull, 3 of the 300,000 s one. Plate: largest of 300 x 4 and 200 x 3 = 1200;
+        // datacore 5 x 3 = 15; both x 10 jobs.
         assertThat(project.requirements().associate { it.item to it.required })
-            .containsExactlyInAnyOrderEntriesOf(mapOf(plate to 21_000L, datacore to 280L))
+            .containsExactlyInAnyOrderEntriesOf(mapOf(plate to 12_000L, datacore to 150L))
         assertThat(project.cycle).isEqualTo(config.cycle)
         assertThat(project.builds(plate)).isTrue()
         assertThat(project.builds(datacore)).isFalse()
@@ -129,7 +130,7 @@ class ProjectsTest {
         hulls = listOf("Legion", "Tengu"),
         hullCount = 14, // not a whole number of 4-run copies: rounds up to 16
         copyRuns = 4,
-        cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4, window = java.time.Duration.ofHours(12)),
+        cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
     )
 
     @Test

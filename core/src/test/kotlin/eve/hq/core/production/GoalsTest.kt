@@ -62,16 +62,15 @@ class GoalsTest {
     }
 
     @Test
-    fun `speed multiplies the quantities and a fraction is rounded up`() {
-        val book = hullRecipes(hull(1, 240_000, tritanium to 3, pyerite to 1))
+    fun `faster jobs fit more runs in the cycle, so more is asked for`() {
+        // 240,000 s a run: 5 runs fit in 14 days. At half the time per run, 10 fit.
+        val book = hullRecipes(hull(1, 240_000, tritanium to 3))
 
-        val required = readinessRequirements(book, listOf(1), CycleSettings(twoWeeks, speed = 1.4), jobs = 1, because = "ready")
+        val slow = readinessRequirements(book, listOf(1), CycleSettings(twoWeeks), jobs = 1, because = "ready")
+        val fast = readinessRequirements(book, listOf(1), CycleSettings(twoWeeks), jobs = 1, because = "ready", runTimes = runTimesFasterBy(0.5))
 
-        // 3 x 5 runs x 1.4 = 21 exactly, 1 x 5 x 1.4 = 7 exactly: no spurious round-up from floating point.
-        assertThat(required).containsExactlyInAnyOrder(Requirement(tritanium, 21, "ready"), Requirement(pyerite, 7, "ready"))
-        val odd = hullRecipes(hull(1, 240_000, tritanium to 1))
-        assertThat(readinessRequirements(odd, listOf(1), CycleSettings(twoWeeks, speed = 1.5), 1, "ready").single().required)
-            .isEqualTo(8) // 5 x 1.5 = 7.5
+        assertThat(slow).containsExactly(Requirement(tritanium, 15, "ready"))
+        assertThat(fast).containsExactly(Requirement(tritanium, 30, "ready"))
     }
 
     @Test
@@ -91,9 +90,8 @@ class GoalsTest {
     }
 
     @Test
-    fun `a cycle must last and speed must be positive`() {
+    fun `a cycle must last longer than zero`() {
         assertFailsWith<IllegalArgumentException> { CycleSettings(Duration.ZERO) }
-        assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, speed = 0.0) }
     }
 
     @Test

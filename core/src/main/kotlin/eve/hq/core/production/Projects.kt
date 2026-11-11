@@ -12,9 +12,8 @@ enum class ProjectId(val title: String) {
 data class ReadinessConfig(val hulls: List<String>, val cycle: CycleSettings, val jobs: Long)
 
 /**
- * The medium T2 hull project's settings; edit them here. The hulls are plain item names (a few, for testing), the speed
- * multiplies quantities as in the v1 notebooks (1.4, to be replaced by real job times later), and the cycle also limits how
- * long a job of the phases below may run. The window keeps the last 12 hours of the cycle free of jobs, so there is time to
+ * The medium T2 hull project's settings; edit them here. The hulls are plain item names, and the cycle also limits how long a
+ * job of the phases below may run. The window keeps the last 12 hours of the cycle free of jobs, so there is time to
  * get to the game and restart them.
  */
 /**
@@ -31,7 +30,7 @@ val T3_CRUISERS = FixedRunConfig(
     hulls = listOf("Legion", "Tengu"),
     hullCount = 16,
     copyRuns = 4,
-    cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4, window = java.time.Duration.ofHours(12)),
+    cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
 )
 
 val MEDIUM_T2_HULLS = ReadinessConfig(
@@ -41,7 +40,7 @@ val MEDIUM_T2_HULLS = ReadinessConfig(
         "Impel","Prorator","Viator","Occator","Hulk","Skiff","Mackinaw",
         "Absolution","Damnation", "Astarte", "Eos"
     ),
-    cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4, window = java.time.Duration.ofHours(12)),
+    cycle = CycleSettings(java.time.Duration.ofDays(14), window = java.time.Duration.ofHours(12)),
     jobs = 4,
 )
 
@@ -51,7 +50,8 @@ class Projects(
     private val mediumT2Hulls: ReadinessConfig = MEDIUM_T2_HULLS,
     private val t3Cruisers: FixedRunConfig = T3_CRUISERS,
 ) {
-    fun get(id: ProjectId): Project = when (id) {
+    /** [runTimes] gives the real time per run (skills, implants, structures); without it jobs take their base time. */
+    fun get(id: ProjectId, runTimes: RunTimes? = null): Project = when (id) {
         ProjectId.AmarrShuttles -> FixedRequirementsProject(
             id.title,
             listOf(Requirement(items.id("Amarr Shuttle"), 1_000, "build 1000 shuttles")),
@@ -78,6 +78,7 @@ class Projects(
                 mediumT2Hulls.cycle,
                 mediumT2Hulls.jobs,
                 "${mediumT2Hulls.jobs} cycle jobs of any of ${mediumT2Hulls.hulls.size} hulls",
+                runTimes,
             ),
             cycle = mediumT2Hulls.cycle,
             endProducts = mediumT2Hulls.hulls.mapTo(linkedSetOf(), items::id),

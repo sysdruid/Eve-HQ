@@ -67,4 +67,12 @@ class RunTimeTest {
         assertFailsWith<IllegalArgumentException> { TimeModifiers(skills = listOf(-0.1)) }
         assertFailsWith<IllegalArgumentException> { ManufacturingSkills.reductions(industry = 6, advancedIndustry = 0) }
     }
+
+    @Test
+    fun `a window holds as many whole runs as fit, and at least one`() {
+        assertThat(TimeModifiers().maxRuns(baseSecondsPerRun = 100, within = Duration.ofSeconds(1_000))).isEqualTo(10)
+        assertThat(TimeModifiers(structure = 0.5).maxRuns(100, Duration.ofSeconds(1_000))).isEqualTo(20) // runs take 50 s
+        assertThat(TimeModifiers().maxRuns(150, Duration.ofSeconds(1_000))).isEqualTo(6) // 6.67 whole runs
+        assertThat(TimeModifiers().maxRuns(5_000, Duration.ofSeconds(1_000))).isEqualTo(1) // a single run outlasts the window
+    }
 }

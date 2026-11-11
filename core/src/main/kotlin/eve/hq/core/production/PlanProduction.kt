@@ -11,7 +11,7 @@ import eve.hq.core.production.ContributionSource.ProjectGoal
  * stock. An item is built when some project reaches it and builds it; a project that buys it still adds
  * its demand to the total the jobs are sized to. A manual stockpile only adds demand and never builds anything.
  */
-class PlanProduction(private val recipes: RecipeBook) {
+class PlanProduction(private val recipes: RecipeBook, private val runTimes: RunTimes? = null) {
     operator fun invoke(
         projects: List<Project>,
         manual: List<Stockpile> = emptyList(),
@@ -64,12 +64,12 @@ class PlanProduction(private val recipes: RecipeBook) {
             val phase = depth.getValue(item)
             val cycle = expanders.mapNotNull(Project::cycle).minByOrNull { it.length }
             val projectNames = expanders.mapTo(linkedSetOf(), Project::name)
-            // A job may not run longer than the cycle, so it is split into jobs that each fit, the remainder last.
-            val perJob = cycle?.maxRunsPerJob(recipe.secondsPerRun) ?: runs
-            val seconds = cycle?.effectiveSecondsPerRun(recipe.secondsPerRun) ?: recipe.secondsPerRun
+            val modifiers = runTimes?.modifiers(recipe) ?: TimeModifiers()
+            // A job may not run longer than the usable cycle, so it is split into jobs that each fit, the remainder last.
+            val perJob = cycle?.let { modifiers.maxRuns(recipe.secondsPerRun, it.usable) } ?: runs
+            val seconds = modifiers.seconds(recipe.secondsPerRun, 1).toInt()
             for (chunk in generateSequence(runs) { it - perJob }.takeWhile { it > 0 }.map { minOf(it, perJob) }) {
-                val total = cycle?.effectiveSeconds(recipe.secondsPerRun, chunk) ?: (chunk * recipe.secondsPerRun)
-                jobs += PlannedJob(item, chunk, projectNames, phase, recipe.blueprint, seconds, total)
+                jobs += PlannedJob(item, chunk, projectNames, phase, recipe.blueprint, seconds, modifiers.seconds(recipe.secondsPerRun, chunk))
             }
             recipe.materials.forEach { (material, perRun) ->
                 add(material, Jobs(item), perRun * runs)

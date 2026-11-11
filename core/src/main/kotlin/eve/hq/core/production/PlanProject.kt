@@ -20,6 +20,8 @@ data class ProjectPlan(
     val running: JobListing,
     val jobFailures: List<JobLoadFailure>,
     val endProducts: Set<TypeId>,
+    /** Characters whose skills, implants or blueprints could not be read, so job times may be longer than in the game. */
+    val timeFailures: List<TimeInputFailure> = emptyList(),
 )
 
 class PlanProject(
@@ -28,6 +30,7 @@ class PlanProject(
     private val assets: AssetService,
     private val listJobs: ListJobs,
     private val clock: Clock,
+    private val runTimeService: RunTimeService? = null,
 ) {
     /**
      * Plans the project alone against the pooled assets plus the output of running jobs that will land in the hangars
@@ -36,12 +39,18 @@ class PlanProject(
     suspend operator fun invoke(id: ProjectId, characters: List<EveCharacter>, refresh: Boolean = false): ProjectPlan {
         val owned = assets.assets(characters, refresh = refresh)
         val running = listJobs(characters)
-        val project = projects.get(id)
+        // The facilities where jobs already run tell which structures the owner has, and so which bonuses to count.
+        val profile = runTimeService?.profile(characters, running.rows.mapTo(mutableSetOf(), JobRow::facilityId))
+        val runTimes = profile?.runTimes
+        val project = projects.get(id, runTimes)
         val until = project.cycle?.let { clock.instant().plus(it.usable) }
         val stock = owned.quantities().toMutableMap()
         runningOutput(running.rows, until).forEach { (item, quantity) -> stock.merge(item, quantity, Long::plus) }
-        val plan = PlanProduction(recipes)(listOf(project), stock = stock)
-        return ProjectPlan(project.requirements(), plan, owned.failures, running, running.failures, project.endProducts)
+        val plan = PlanProduction(recipes, runTimes)(listOf(project), stock = stock)
+        return ProjectPlan(
+            project.requirements(), plan, owned.failures, running, running.failures, project.endProducts,
+            profile?.failures.orEmpty(),
+        )
     }
 
     /** What running jobs ending by [until] will deliver. Delivered jobs are not listed; invention and copying make no items. */

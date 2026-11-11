@@ -22,7 +22,8 @@ class PlanProductionTest {
         vararg projects: Project,
         manual: List<Stockpile> = emptyList(),
         stock: Map<TypeId, Long> = emptyMap(),
-    ) = PlanProduction({ recipes[it] })(projects.toList(), manual, stock)
+        runTimes: RunTimes? = null,
+    ) = PlanProduction({ recipes[it] }, runTimes)(projects.toList(), manual, stock)
 
     @Test
     fun `a requirement with a recipe is one job and its materials are shopped`() {
@@ -329,13 +330,23 @@ class PlanProductionTest {
     }
 
     @Test
-    fun `speed lets a job hold more runs and reports the time a run really takes`() {
+    fun `faster jobs hold more runs, and report the time a run really takes`() {
         recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
 
-        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks, speed = 2.0), rifter to 30))
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks), rifter to 30), runTimes = runTimesFasterBy(0.5))
 
-        assertThat(plan.jobs.map { it.runs }).containsExactly(24L, 6L)
+        assertThat(plan.jobs.map { it.runs }).containsExactly(24L, 6L) // 50,000 s a run
         assertThat(plan.jobs.map { it.secondsPerRun }.distinct()).containsExactly(50_000)
+    }
+
+    @Test
+    fun `a project without a cycle is not split but its jobs still take their real time`() {
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
+
+        val job = plan(project("Free", rifter to 30), runTimes = runTimesFasterBy(0.5)).jobs.single()
+
+        assertThat(job.runs).isEqualTo(30)
+        assertThat(job.totalSeconds).isEqualTo(1_500_000) // 30 x 50,000 s
     }
 
     @Test
@@ -360,15 +371,15 @@ class PlanProductionTest {
 
     @Test
     fun `no split job outlasts the cycle, even when a rounded run time would suggest it`() {
-        // 25 s a run at speed 1.4 is 17.857 s, shown as 18 s; 18 s x 67,737 runs would read as 338 h, over the 336 h cycle.
+        // 25 s a run with 29% off is 17.75 s, shown as 18 s: 18 s x 68,146 runs would read as 340 h, over the 336 h cycle.
         recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 1), blueprint = 1, secondsPerRun = 25)
 
-        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks, speed = 1.4), rifter to 250_000))
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks), rifter to 250_000), runTimes = runTimesFasterBy(0.29))
 
-        assertThat(plan.jobs.map { it.runs }).containsExactly(67_737L, 67_737L, 67_737L, 250_000L - 3 * 67_737L)
+        assertThat(plan.jobs.map { it.runs }).containsExactly(68_146L, 68_146L, 68_146L, 250_000L - 3 * 68_146L)
         assertThat(plan.jobs.map { it.secondsPerRun }.distinct()).containsExactly(18)
         assertThat(plan.jobs.all { it.totalSeconds <= twoWeeks.seconds }).isTrue()
-        assertThat(plan.jobs.first().totalSeconds).isEqualTo(1_209_589) // 67,737 x 25 s / 1.4; the 68th run no longer fits
+        assertThat(plan.jobs.first().totalSeconds).isEqualTo(1_209_592) // 68,146 x 17.75 s, rounded once
     }
 
     @Test
