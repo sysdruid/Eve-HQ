@@ -109,7 +109,8 @@ class ProjectsViewModel(
     private fun jobLine(job: PlannedJob): String {
         val runs = if (job.runs == 1L) "1 run" else "${count(job.runs)} runs"
         val each = Duration.ofSeconds(job.secondsPerRun.toLong()).asEtl()
-        return "${name(job.blueprint)}  $runs × $each  → ${name(job.product)}"
+        val total = Duration.ofSeconds(job.secondsPerRun.toLong() * job.runs).asEtl()
+        return "${name(job.blueprint)}  $runs × $each = $total  → ${name(job.product)}"
     }
 
     private fun shoppingLine(demand: ItemDemand) = ShoppingLine(

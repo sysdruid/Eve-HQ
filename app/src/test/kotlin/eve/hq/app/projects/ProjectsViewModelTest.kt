@@ -76,7 +76,7 @@ class ProjectsViewModelTest {
         assertThat(state.title).isEqualTo("1000 Amarr Shuttles")
         assertThat(state.goals).containsExactly("1,000 × Amarr Shuttle")
         assertThat(state.phases).containsExactly(
-            PhaseBlock("Phase 1", listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m  → Amarr Shuttle")),
+            PhaseBlock("Phase 1", listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle")),
         )
         assertThat(state.shopping).containsExactly(
             ShoppingLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
@@ -111,7 +111,7 @@ class ProjectsViewModelTest {
         system.store(1, "Alice")
         val viewModel = viewModel()
 
-        assertThat(viewModel.state.value.projects.map { it.id }).containsExactly(ProjectId.AmarrShuttles, ProjectId.AnathemaInputs)
+        assertThat(viewModel.state.value.projects.map { it.id }).containsExactly(ProjectId.AmarrShuttles, ProjectId.AnathemaInputs, ProjectId.MediumT2Hulls)
         assertThat(viewModel.state.value.selected).isEqualTo(ProjectId.AmarrShuttles)
 
         viewModel.select(ProjectId.AnathemaInputs)

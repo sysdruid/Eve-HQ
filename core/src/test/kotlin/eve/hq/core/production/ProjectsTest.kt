@@ -65,4 +65,44 @@ class ProjectsTest {
         assertThat(listOf(plate, composite, intermediate).map(project::builds)).containsOnly(true)
         assertThat(listOf(magnate, tool, fuelBlock).map(project::builds)).containsOnly(false)
     }
+
+    private val zealot = 11000L
+    private val sacrilege = 11001L
+    private val datacore = 20000L
+
+    private val hullNames = FakeItemCatalog(
+        names = mapOf(zealot to "Zealot", sacrilege to "Sacrilege", plate to "Plate", datacore to "Datacore"),
+        groups = mapOf(plate to "Construction Components", datacore to "Datacore"),
+    )
+    private val hullRecipes = RecipeBook { product ->
+        when (product) {
+            zealot -> Recipe(zealot, 1, mapOf(plate to 300), blueprint = 1, secondsPerRun = 240_000)
+            sacrilege -> Recipe(sacrilege, 1, mapOf(plate to 200, datacore to 5), blueprint = 2, secondsPerRun = 300_000)
+            else -> null
+        }
+    }
+    private val config = ReadinessConfig(
+        hulls = listOf("Zealot", "Sacrilege"),
+        cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4),
+        jobs = 10,
+    )
+
+    @Test
+    fun `the medium hull project is ready for jobs of any listed hull in the configured cycle`() {
+        val project = Projects(Items(hullNames), hullRecipes, config).get(ProjectId.MediumT2Hulls)
+
+        // plate: largest of 300 x 5 runs and 200 x 4 runs = 1500; datacore 5 x 4 = 20; both x 1.4 speed x 10 jobs.
+        assertThat(project.requirements().associate { it.item to it.required })
+            .containsExactlyInAnyOrderEntriesOf(mapOf(plate to 21_000L, datacore to 280L))
+        assertThat(project.cycle).isEqualTo(config.cycle)
+        assertThat(project.builds(plate)).isTrue()
+        assertThat(project.builds(datacore)).isFalse()
+    }
+
+    @Test
+    fun `a hull missing from the catalog fails when the project is defined`() {
+        val misspelt = config.copy(hulls = listOf("Zealot", "Zealott"))
+
+        assertFailsWith<IllegalArgumentException> { Projects(Items(hullNames), hullRecipes, misspelt).get(ProjectId.MediumT2Hulls) }
+    }
 }
