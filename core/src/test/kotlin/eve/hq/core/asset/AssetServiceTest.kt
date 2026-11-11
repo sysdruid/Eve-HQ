@@ -125,4 +125,65 @@ class AssetServiceTest {
 
         assertThat(loads).isEqualTo(1)
     }
+
+    private fun item(itemId: Long, type: Long, name: String?, quantity: Int, parent: Long, parentName: String? = null, custom: String? = null) =
+        AssetItem(itemId, AssetType(type, name), custom, quantity, AssetLocation(parent, parentName))
+
+    @Test
+    fun `assets carry their station and the containers around them, outermost first`() = runBlocking<Unit> {
+        assets = listOf(
+            item(700, 100, "Large Container", 1, 60000001, "Jita IV"),
+            item(701, 200, "Small Container", 1, 700, custom = "Ammo box"),
+            item(702, 34, "Tritanium", 42, 701),
+        )
+
+        val owned = service.assets(listOf(alice)).items
+
+        assertThat(owned.map { it.type.name }).containsExactly("Large Container", "Small Container", "Tritanium")
+        val tritanium = owned.last()
+        assertThat(tritanium.station).isEqualTo(AssetLocation(60000001, "Jita IV"))
+        assertThat(tritanium.containers).containsExactly("Large Container", "Ammo box")
+        assertThat(tritanium.characterName).isEqualTo("Alice")
+        assertThat(owned.first().containers).isEmpty()
+    }
+
+    @Test
+    fun `a query narrows by type and by station`() = runBlocking<Unit> {
+        assets = listOf(
+            item(1, 34, "Tritanium", 10, 60000001, "Jita IV"),
+            item(2, 35, "Pyerite", 20, 60000001, "Jita IV"),
+            item(3, 34, "Tritanium", 30, 60000002, "Amarr VIII"),
+        )
+
+        assertThat(service.assets(listOf(alice), AssetQuery(types = setOf(34))).items.map { it.itemId }).containsExactly(1L, 3L)
+        assertThat(service.assets(listOf(alice), AssetQuery(stationId = 60000002)).items.map { it.itemId }).containsExactly(3L)
+        assertThat(service.assets(listOf(alice), AssetQuery(types = setOf(35), stationId = 60000002)).items).isEmpty()
+    }
+
+    @Test
+    fun `the result lists the failures and snapshot times beside the assets`() = runBlocking<Unit> {
+        failure = IOException("ESI down")
+        saved = AssetSnapshot(listOf(item(9, 35, "Pyerite", 5, 60000001, "Jita IV")), start.minusSeconds(3600))
+
+        val result = service.assets(listOf(alice))
+
+        assertThat(result.items.map { it.itemId }).containsExactly(9L)
+        assertThat(result.failures.single().message).isEqualTo("ESI down")
+        assertThat(result.snapshots).containsExactly(AssetSnapshotInfo(1, "Alice", start.minusSeconds(3600)))
+    }
+
+    @Test
+    fun `quantities add a type up over every container and character`() = runBlocking<Unit> {
+        val bob = EveCharacter(2, "Bob", AuthToken("access", "refresh", Instant.MAX))
+        assets = listOf(
+            item(700, 100, "Container", 1, 60000001, "Jita IV"),
+            item(701, 34, "Tritanium", 40, 700),
+            item(702, 34, "Tritanium", 2_000_000_000, 60000001, "Jita IV"),
+        )
+
+        val total = service.assets(listOf(alice, bob)).quantities()
+
+        assertThat(total[34]).isEqualTo(2 * (2_000_000_000L + 40))
+        assertThat(total[100]).isEqualTo(2L)
+    }
 }

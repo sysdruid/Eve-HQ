@@ -47,52 +47,27 @@ class ListAssets(private val service: AssetService) {
     constructor(source: AssetSource, clock: Clock = Clock.systemUTC()) : this(AssetService(source, clock))
 
     suspend operator fun invoke(characters: List<EveCharacter>, query: String = "", refresh: Boolean = false): AssetListing =
-        listing(service.assetsOf(characters, refresh), query)
+        listing(service.assets(characters, refresh = refresh), query)
 
     fun cached(characters: List<EveCharacter>, query: String = ""): AssetListing =
-        listing(service.saved(characters).filter { it.snapshot != null }, query)
+        listing(service.savedAssets(characters), query)
 
-    private fun listing(results: List<CharacterAssets>, query: String): AssetListing {
-        val rows = results.flatMap { result -> result.snapshot?.let { assetRows(result.character, it.items) }.orEmpty() }
-        val failures = results.mapNotNull(CharacterAssets::failure)
-        val snapshots = results.mapNotNull { result ->
-            result.snapshot?.let { AssetSnapshotInfo(result.character.id, result.character.name, it.updatedAt) }
-        }
-        val sorted = rows.sortedWith(
+    private fun listing(owned: OwnedAssets, query: String): AssetListing {
+        val rows = owned.items.map { asset ->
+            AssetRow(
+                characterName = asset.characterName,
+                stationName = asset.station.name ?: "Location ${asset.station.id}",
+                containerPath = asset.containers.joinToString(" > "),
+                typeName = asset.type.name ?: "Unknown type (${asset.type.id})",
+                quantity = asset.quantity,
+            )
+        }.sortedWith(
             compareBy<AssetRow> { it.characterName.lowercase() }
                 .thenBy { it.stationName.lowercase() }
                 .thenBy { it.containerPath.lowercase() }
                 .thenBy { it.typeName.lowercase() },
         )
-        return AssetListing(SearchAssets()(sorted, query), failures, snapshots)
-    }
-
-    private fun assetRows(character: EveCharacter, assets: List<AssetItem>): List<AssetRow> {
-        val assetsById = assets.associateBy(AssetItem::itemId)
-        return assets.map { it.toAssetRow(character, assetsById) }
-    }
-
-    private fun AssetItem.toAssetRow(
-        character: EveCharacter,
-        assetsById: Map<Long, AssetItem>,
-    ): AssetRow {
-        val containers = mutableListOf<String>()
-        val visited = mutableSetOf(itemId)
-        var currentLocation = location
-        while (true) {
-            val parent = assetsById[currentLocation.id]?.takeIf { visited.add(it.itemId) } ?: break
-            containers += parent.customName
-                ?: parent.type.name
-                ?: "Unknown type (${parent.type.id})"
-            currentLocation = parent.location
-        }
-        return AssetRow(
-            characterName = character.name,
-            stationName = currentLocation.name ?: "Location ${currentLocation.id}",
-            containerPath = containers.asReversed().joinToString(" > "),
-            typeName = type.name ?: "Unknown type (${type.id})",
-            quantity = quantity,
-        )
+        return AssetListing(SearchAssets()(rows, query), owned.failures, owned.snapshots)
     }
 }
 

@@ -3,7 +3,6 @@ package eve.hq.core.production
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.AssetSource
-import eve.hq.core.asset.CharacterAssets
 import eve.hq.core.character.EveCharacter
 import java.time.Clock
 
@@ -25,14 +24,12 @@ class ListStockpiles(private val stockpiles: StockpileRepository, private val as
         this(stockpiles, AssetService(source, clock))
 
     suspend operator fun invoke(characters: List<EveCharacter>, refresh: Boolean = false): StockpileListing {
-        val results = assets.assetsOf(characters, refresh)
-        val onHand = results.flatMap { it.snapshot?.items.orEmpty() }
-            .groupBy { it.type.id }
-            .mapValues { (_, owned) -> owned.sumOf { it.quantity.toLong() } }
+        val owned = assets.assets(characters, refresh = refresh)
+        val onHand = owned.quantities()
         val rows = stockpiles.all().map { pile ->
             val quantity = onHand[pile.item] ?: 0
             StockpileRow(pile, quantity, pile.statusFor(quantity))
         }.sortedWith(compareBy({ it.status }, { it.stockpile.name.lowercase() }))
-        return StockpileListing(rows, results.mapNotNull(CharacterAssets::failure))
+        return StockpileListing(rows, owned.failures)
     }
 }
