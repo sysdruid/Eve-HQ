@@ -15,13 +15,17 @@ import eve.hq.data.StaticDataImporter
 import eve.hq.data.downloadStaticData
 import java.nio.file.Path
 import java.time.Clock
+import java.util.logging.Level
+import java.util.logging.Logger
 
 internal const val LATEST_SDE_URL = "https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip"
 
 fun main(args: Array<String>) {
     val dataDir = DataDir.open(Platform.current())
+    AppLog.install(dataDir)
     if (runCommand(args, dataDir)) return
     val services = runCatching { AppServices.create(dataDir) }
+        .onFailure { Logger.getLogger("eve.hq.app").log(Level.SEVERE, "Startup failed", it) }
     application {
         Window(onCloseRequest = ::exitApplication, title = "Eve-HQ") {
             MaterialTheme {

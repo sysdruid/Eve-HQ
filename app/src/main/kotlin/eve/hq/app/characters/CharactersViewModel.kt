@@ -1,5 +1,7 @@
 package eve.hq.app.characters
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import eve.hq.core.character.AddCharacter
 import eve.hq.core.character.CharacterStatus
 import eve.hq.core.character.EveCharacter
@@ -28,6 +30,8 @@ data class CharactersUiState(
     val characters: List<CharacterRow> = emptyList(),
     val login: LoginState = LoginState.Idle,
 )
+
+private val log = Logger.getLogger(CharactersViewModel::class.java.name)
 
 class CharactersViewModel(
     private val listCharacters: ListCharacters,
@@ -58,6 +62,7 @@ class CharactersViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                log.log(Level.WARNING, "characters view model failed", e)
                 _state.update { it.copy(login = LoginState.Failed("Unexpected error: ${e.message ?: e::class.simpleName}")) }
             }
         }

@@ -1,5 +1,7 @@
 package eve.hq.app.stockpiles
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.production.ItemType
@@ -39,6 +41,8 @@ data class StockpilesUiState(
     val error: String? = null,
     val form: StockpileForm? = null,
 )
+
+private val log = Logger.getLogger(StockpilesViewModel::class.java.name)
 
 class StockpilesViewModel(
     private val listCharacters: ListCharacters,
@@ -146,6 +150,7 @@ class StockpilesViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                log.log(Level.WARNING, "stockpiles view model failed", e)
                 _state.update { it.copy(loading = false, error = e.message ?: "Unable to load stockpiles") }
             }
         }

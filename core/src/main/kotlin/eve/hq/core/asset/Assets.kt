@@ -3,6 +3,8 @@ package eve.hq.core.asset
 import eve.hq.core.character.EveCharacter
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
+import java.util.logging.Level
+import java.util.logging.Logger
 
 data class AssetType(val id: Long, val name: String?)
 
@@ -100,6 +102,7 @@ class ListAssets(private val source: AssetSource) {
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
+        Logger.getLogger("eve.hq.core.asset").log(Level.WARNING, "Loading assets failed", e)
         Result.failure(e)
     }
 

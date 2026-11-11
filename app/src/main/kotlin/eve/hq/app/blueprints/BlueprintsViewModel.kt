@@ -1,5 +1,7 @@
 package eve.hq.app.blueprints
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import eve.hq.app.jobs.asEtl
 import eve.hq.app.jobs.code
 import eve.hq.core.blueprint.BlueprintKind
@@ -30,6 +32,8 @@ data class BlueprintsUiState(
     val failures: List<BlueprintLoadFailure> = emptyList(),
     val error: String? = null,
 )
+
+private val log = Logger.getLogger(BlueprintsViewModel::class.java.name)
 
 class BlueprintsViewModel(
     private val listCharacters: ListCharacters,
@@ -71,6 +75,7 @@ class BlueprintsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                log.log(Level.WARNING, "blueprints view model failed", e)
                 _state.update { it.copy(loading = false, error = e.message ?: "Unable to load blueprints") }
             }
         }

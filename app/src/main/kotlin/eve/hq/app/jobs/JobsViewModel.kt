@@ -1,5 +1,7 @@
 package eve.hq.app.jobs
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
@@ -27,6 +29,8 @@ data class JobsUiState(
     val failures: List<JobLoadFailure> = emptyList(),
     val error: String? = null,
 )
+
+private val log = Logger.getLogger(JobsViewModel::class.java.name)
 
 class JobsViewModel(
     private val listCharacters: ListCharacters,
@@ -67,6 +71,7 @@ class JobsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                log.log(Level.WARNING, "jobs view model failed", e)
                 _state.update { it.copy(loading = false, error = e.message ?: "Unable to load jobs") }
             }
         }

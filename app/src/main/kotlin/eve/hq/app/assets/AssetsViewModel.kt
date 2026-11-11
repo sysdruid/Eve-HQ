@@ -1,5 +1,7 @@
 package eve.hq.app.assets
 
+import java.util.logging.Level
+import java.util.logging.Logger
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.asset.AssetRow
 import eve.hq.core.asset.AssetSnapshotInfo
@@ -24,6 +26,8 @@ data class AssetsUiState(
     val snapshots: List<AssetSnapshotInfo> = emptyList(),
     val error: String? = null,
 )
+
+private val log = Logger.getLogger(AssetsViewModel::class.java.name)
 
 class AssetsViewModel(
     private val listCharacters: ListCharacters,
@@ -73,6 +77,7 @@ class AssetsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                log.log(Level.WARNING, "assets view model failed", e)
                 _state.update { it.copy(loading = false, error = e.message ?: "Unable to load assets") }
             }
         }
