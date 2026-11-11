@@ -111,7 +111,7 @@ class ProjectsViewModelTest {
         system.store(1, "Alice")
         val viewModel = viewModel()
 
-        assertThat(viewModel.state.value.projects.map { it.id }).containsExactly(ProjectId.AmarrShuttles, ProjectId.AnathemaInputs, ProjectId.MediumT2Hulls)
+        assertThat(viewModel.state.value.projects.map { it.id }).containsExactly(ProjectId.AmarrShuttles, ProjectId.AnathemaInputs, ProjectId.MediumT2Hulls, ProjectId.T3Cruisers)
         assertThat(viewModel.state.value.selected).isEqualTo(ProjectId.AmarrShuttles)
 
         viewModel.select(ProjectId.AnathemaInputs)

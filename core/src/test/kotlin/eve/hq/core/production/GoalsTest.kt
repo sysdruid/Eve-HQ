@@ -111,4 +111,20 @@ class GoalsTest {
         assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, window = twoWeeks) }
         assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, window = Duration.ofHours(-1)) }
     }
+
+    @Test
+    fun `a fixed run count asks for the largest single-hull need, with no speed and no cycle`() {
+        val book = hullRecipes(
+            hull(1, 300_000, tritanium to 21, pyerite to 12),
+            hull(2, 300_000, tritanium to 21, datacore to 12),
+        )
+
+        val required = fixedRunRequirements(book, listOf(1, 2), runs = 16, because = "sixteen")
+
+        assertThat(required).containsExactlyInAnyOrder(
+            Requirement(tritanium, 336, "sixteen"),
+            Requirement(pyerite, 192, "sixteen"),
+            Requirement(datacore, 192, "sixteen"),
+        )
+    }
 }

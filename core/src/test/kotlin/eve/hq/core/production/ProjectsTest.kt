@@ -105,4 +105,49 @@ class ProjectsTest {
 
         assertFailsWith<IllegalArgumentException> { Projects(Items(hullNames), hullRecipes, misspelt).get(ProjectId.MediumT2Hulls) }
     }
+
+    private val legion = 29986L
+    private val tengu = 29984L
+    private val nanowire = 21001L
+    private val radarAmp = 21002L
+    private val gravAmp = 21003L
+    private val ram = 3828L
+    private val polymer = 21100L
+
+    private val t3Catalog = FakeItemCatalog(
+        names = mapOf(legion to "Legion", tengu to "Tengu", nanowire to "Nanowire", radarAmp to "Radar Amp", gravAmp to "Grav Amp", ram to "RAM", polymer to "Polymer", fuelBlock to "Fuel Block"),
+        groups = mapOf(nanowire to "Hybrid Tech Components", radarAmp to "Hybrid Tech Components", gravAmp to "Hybrid Tech Components", ram to "Tool", polymer to "Hybrid Polymers", fuelBlock to "Fuel Block"),
+    )
+    private val t3Recipes = RecipeBook { product ->
+        when (product) {
+            legion -> Recipe(legion, 1, mapOf(nanowire to 21, radarAmp to 12, ram to 15), blueprint = 1, secondsPerRun = 300_000)
+            tengu -> Recipe(tengu, 1, mapOf(nanowire to 21, gravAmp to 12, ram to 15), blueprint = 2, secondsPerRun = 300_000)
+            else -> null
+        }
+    }
+    private val t3Config = FixedRunConfig(
+        hulls = listOf("Legion", "Tengu"),
+        hullCount = 14, // not a whole number of 4-run copies: rounds up to 16
+        copyRuns = 4,
+        cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4, window = java.time.Duration.ofHours(12)),
+    )
+
+    @Test
+    fun `the T3 project is ready for whole copies of either hull, taking the largest need of each material`() {
+        val project = Projects(Items(t3Catalog), t3Recipes, t3Cruisers = t3Config).get(ProjectId.T3Cruisers)
+
+        assertThat(t3Config.runs).isEqualTo(16)
+        assertThat(project.requirements().associate { it.item to it.required }).containsExactlyInAnyOrderEntriesOf(
+            mapOf(nanowire to 336L, radarAmp to 192L, gravAmp to 192L, ram to 240L),
+        )
+        assertThat(project.cycle).isEqualTo(t3Config.cycle)
+    }
+
+    @Test
+    fun `the T3 project builds the hybrid components and polymers and buys the tool and the fuel`() {
+        val project = Projects(Items(t3Catalog), t3Recipes, t3Cruisers = t3Config).get(ProjectId.T3Cruisers)
+
+        assertThat(listOf(nanowire, radarAmp, polymer).map(project::builds)).containsOnly(true)
+        assertThat(listOf(ram, fuelBlock).map(project::builds)).containsOnly(false)
+    }
 }

@@ -25,16 +25,28 @@ fun readinessRequirements(
     jobs: Long,
     because: String,
 ): List<Requirement> {
-    val perHull = hulls.map { hull ->
-        val recipe = requireNotNull(recipes.forProduct(hull)) { "Type $hull has no recipe to take inputs from" }
-        // A single run longer than the usable cycle still needs its inputs, so at least one run counts.
-        val runs = maxOf(1L, cycle.usable.seconds / recipe.secondsPerRun)
-        recipe.materials.mapValues { (_, perRun) -> perRun * runs }
-    }
-    val largest = perHull.flatMap { it.entries }.groupBy({ it.key }, { it.value }).mapValues { (_, needs) -> needs.max() }
+    // A single run longer than the usable cycle still needs its inputs, so at least one run counts.
+    val largest = largestNeeds(recipes, hulls) { recipe -> maxOf(1L, cycle.usable.seconds / recipe.secondsPerRun) }
     // Decimal arithmetic: 15 x 1.4 must be exactly 21, not 21.000000000000004 rounded up to 22.
     val scale = BigDecimal(cycle.speed.toString()) * BigDecimal(jobs)
     return largest.map { (material, quantity) ->
         Requirement(material, (BigDecimal(quantity) * scale).setScale(0, RoundingMode.CEILING).toLong(), because)
     }
+}
+
+/**
+ * What must be on hand to run exactly [runs] runs of any one of [hulls]: per material the largest need of any single hull,
+ * as for readiness, but with a fixed run count (invented copies have a fixed number of runs) and no speed, since the count
+ * of hulls is exact.
+ */
+fun fixedRunRequirements(recipes: RecipeBook, hulls: List<TypeId>, runs: Long, because: String): List<Requirement> =
+    largestNeeds(recipes, hulls) { runs }.map { (material, quantity) -> Requirement(material, quantity, because) }
+
+private fun largestNeeds(recipes: RecipeBook, hulls: List<TypeId>, runsOf: (Recipe) -> Long): Map<TypeId, Long> {
+    val perHull = hulls.map { hull ->
+        val recipe = requireNotNull(recipes.forProduct(hull)) { "Type $hull has no recipe to take inputs from" }
+        val runs = runsOf(recipe)
+        recipe.materials.mapValues { (_, perRun) -> perRun * runs }
+    }
+    return perHull.flatMap { it.entries }.groupBy({ it.key }, { it.value }).mapValues { (_, needs) -> needs.max() }
 }
