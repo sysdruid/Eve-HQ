@@ -1,5 +1,7 @@
 package eve.hq.data
 
+import eve.hq.core.production.ItemType
+import eve.hq.core.production.TypeCatalog
 import eve.hq.data.jooq.tables.Types.TYPES
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
@@ -8,7 +10,7 @@ import org.jooq.conf.Settings
 import org.jooq.impl.DSL
 import javax.sql.DataSource
 
-class StaticTypeNameRepository(dataSource: DataSource) {
+class StaticTypeNameRepository(dataSource: DataSource) : TypeCatalog {
     private val dsl: DSLContext = DSL.using(
         dataSource,
         SQLDialect.H2,
@@ -24,7 +26,19 @@ class StaticTypeNameRepository(dataSource: DataSource) {
         }
         .toMap()
 
+    override fun search(query: String): List<ItemType> {
+        if (query.isBlank()) return emptyList()
+        return dsl.select(TYPES.ID, TYPES.NAME)
+            .from(TYPES)
+            .where(TYPES.PUBLISHED.isTrue)
+            .and(TYPES.NAME.containsIgnoreCase(query.trim()))
+            .orderBy(DSL.length(TYPES.NAME), TYPES.NAME)
+            .limit(SEARCH_LIMIT)
+            .fetch { record -> ItemType(record.value1(), record.value2()) }
+    }
+
     companion object {
         private const val QUERY_BATCH_SIZE = 1000
+        private const val SEARCH_LIMIT = 25
     }
 }
