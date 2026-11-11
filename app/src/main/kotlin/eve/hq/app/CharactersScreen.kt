@@ -48,10 +48,13 @@ fun CharactersScreen(viewModel: CharactersViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column {
-                        Text(row.name, style = MaterialTheme.typography.titleMedium)
-                        row.problem?.let {
-                            Text("Needs login again: $it", color = MaterialTheme.colorScheme.error)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CharacterPortrait(row.id, size = 48.dp)
+                        Column {
+                            Text(row.name, style = MaterialTheme.typography.titleMedium)
+                            row.problem?.let {
+                                Text("Needs login again: $it", color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                     TextButton(onClick = { viewModel.remove(row.id) }) { Text("Remove") }

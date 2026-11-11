@@ -2,6 +2,8 @@ package eve.hq.app
 
 import eve.hq.app.assets.AssetsViewModel
 import eve.hq.app.blueprints.BlueprintsViewModel
+import eve.hq.app.images.EveBitmaps
+import eve.hq.app.images.EveImages
 import eve.hq.app.projects.ProjectsViewModel
 import eve.hq.app.stockpiles.StockpilesViewModel
 import eve.hq.app.characters.CharactersViewModel
@@ -66,6 +68,7 @@ data class AppViewModels(
     val blueprints: Lazy<BlueprintsViewModel>,
     val stockpiles: Lazy<StockpilesViewModel>,
     val projects: Lazy<ProjectsViewModel>,
+    val bitmaps: Lazy<EveBitmaps>,
 )
 
 object AppServices {
@@ -172,6 +175,8 @@ object AppServices {
                 Dispatchers.IO,
             )
         }
-        return AppViewModels(characters, assets, jobs, blueprints, stockpiles, projects)
+        // Pictures are cached next to the database, so each is downloaded once.
+        val bitmaps = lazy { EveBitmaps(EveImages(http.value, dataDir.resolve("images"))) }
+        return AppViewModels(characters, assets, jobs, blueprints, stockpiles, projects, bitmaps)
     }
 }
