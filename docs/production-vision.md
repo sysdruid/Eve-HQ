@@ -49,11 +49,12 @@ and the set of active projects is fixed in code. How projects are created and ed
   how it computed them. An output goal says "N of X"; a readiness goal (below) says "the direct inputs of any job in this
   selection". The planner never knows which kind it was given.
 - **Build rule:** per project, see above.
-- **Phases** are the depth from the goals: the goals' own jobs, then the jobs making their inputs, and so on (v1 chained
-  `plan(...)` stages by hand the same way, sometimes filtering each stage by item group). An item needed at several
-  depths takes the deepest one, so its job sits after every job consuming it. **Phases run in parallel,** all inside the
-  cycle, each making the input the next consumes; a phase number is a grouping and never an order to run in. Grouping the
-  to-do by phase, then by item group, is computed from the plan and needs no configuration.
+- **Phases** are layers of the plan: the jobs making the goals' own inputs, the jobs making their inputs, and so on (v1
+  chained `plan(...)` stages by hand the same way, sometimes filtering each stage by item group). They are numbered from 1 at
+  the most upstream layer (reactions, intermediates) to N at the layer next to the goals, so the numbers read in the order the
+  material flows. An item needed at several layers takes the most upstream one, so its job sits before every job consuming it.
+  **Phases run in parallel,** all inside the cycle, each making the input the next consumes; a phase number is a grouping and
+  never an order to run in. Grouping the to-do by phase, then by item group, is computed from the plan and needs no configuration.
 - **Characters and stations** per phase: later. They matter for the to-do list and for where a phase's input stock should
   sit, not for the first calculation. Planning stays pooled across characters and stations.
 
@@ -168,7 +169,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 3b. Readiness goals. Done: explicit hull list, runs that fit the cycle, max over members per material x speed x jobs, direct
    inputs as requirements, and job splitting by cycle length (the Medium T2 hulls project, configured in `Projects.kt`).
    To do: fixed-run copies (T3), selector filters after the type-attribute import, slot and blueprint max-run limits.
-4. Done: phase as depth in the plan, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
+4. Done: phases as layers numbered from the most upstream, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
 5. Stock sources beyond assets: unclaimed and running job output, BPC runs.
 6. Tick-off from the Jobs data.
 7. Exact job time from ESI, slot checks, job splitting, capacity warnings.

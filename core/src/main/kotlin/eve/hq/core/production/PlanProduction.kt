@@ -60,7 +60,9 @@ class PlanProduction(private val recipes: RecipeBook) {
                 depth.merge(material, phase + 1, ::maxOf)
             }
         }
-        return Plan(demands, jobs)
+        // Depth counts from the goals, but phases read upstream first: renumber once the deepest layer is known.
+        val deepest = jobs.maxOfOrNull(PlannedJob::phase) ?: 0
+        return Plan(demands, jobs.map { it.copy(phase = deepest - it.phase + 1) })
     }
 
     /** Whether any project builds [item]; used only to order the walk, so it may include items nobody reaches. */

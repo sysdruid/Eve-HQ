@@ -29,9 +29,9 @@ data class ItemDemand(val item: TypeId, val contributions: List<Contribution>, v
 }
 
 /**
- * [projects] are the projects that build [product]. [phase] is the product's depth from the goals, counted from 1:
- * the goals' own jobs, then the jobs making their inputs, and so on. Phases are not an order to run in. All of them
- * run in parallel within the cycle, each making the input the next phase consumes.
+ * [projects] are the projects that build [product]. [phase] is its layer, counted from 1 at the most upstream one (the
+ * jobs furthest from the goals, such as reactions) up to the last, whose jobs make the goals' own inputs. Phases are not an
+ * order to run in. All of them run in parallel within the cycle, each making the input the next phase consumes.
  */
 data class PlannedJob(
     val product: TypeId,
