@@ -19,16 +19,16 @@ class PlanProduction(private val recipes: RecipeBook) {
     ): Plan {
         val contributions = linkedMapOf<TypeId, MutableList<Contribution>>()
         val reachedBy = mutableMapOf<TypeId, MutableSet<Project>>()
-        fun add(item: TypeId, source: ContributionSource, quantity: Long) {
-            if (quantity > 0) contributions.getOrPut(item) { mutableListOf() } += Contribution(source, quantity)
+        fun add(item: TypeId, source: ContributionSource, required: Long, preferred: Long = required) {
+            if (required > 0) contributions.getOrPut(item) { mutableListOf() } += Contribution(source, required, preferred)
         }
         projects.forEach { project ->
             project.requirements().forEach { requirement ->
-                add(requirement.item, ProjectGoal(project.name, requirement.because), requirement.quantity)
+                add(requirement.item, ProjectGoal(project.name, requirement.because), requirement.required, requirement.preferred ?: requirement.required)
                 reachedBy.getOrPut(requirement.item) { linkedSetOf() } += project
             }
         }
-        manual.forEach { add(it.item, ManualStockpile, it.required) }
+        manual.forEach { add(it.item, ManualStockpile, it.required, it.preferred ?: it.required) }
 
         val demands = mutableListOf<ItemDemand>()
         val jobs = mutableListOf<PlannedJob>()

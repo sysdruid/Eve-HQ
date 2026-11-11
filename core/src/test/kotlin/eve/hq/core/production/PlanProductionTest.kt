@@ -203,4 +203,56 @@ class PlanProductionTest {
             .isEqualTo(PlannedJob(component, 8, setOf("Merlins")))
         assertThat(shopped(plan)).containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 64L, pyerite to 20L))
     }
+
+    private fun goal(item: TypeId, required: Long, preferred: Long) =
+        FixedRequirementsProject("Goals", listOf(Requirement(item, required, "test", preferred)))
+
+    @Test
+    fun `an item obtained elsewhere stays on the shopping list until its preferred level is reached`() {
+        val belowPreferred = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 150L))
+        val atPreferred = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 300L))
+
+        val demand = belowPreferred.shoppingList.single()
+        assertThat(demand.deficit).isZero()
+        assertThat(demand.deficitToPreferred).isEqualTo(150)
+        assertThat(demand.status).isEqualTo(StockpileStatus.BelowPreferred)
+        assertThat(atPreferred.shoppingList).isEmpty()
+    }
+
+    @Test
+    fun `below the required level is reported as such, ahead of preferred`() {
+        val plan = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 40L))
+
+        assertThat(plan.shoppingList.single().status).isEqualTo(StockpileStatus.BelowRequired)
+        assertThat(plan.shoppingList.single().deficitToPreferred).isEqualTo(260)
+    }
+
+    @Test
+    fun `a preferred level never creates jobs`() {
+        recipe(rifter, 1, tritanium to 100)
+
+        val plan = plan(goal(rifter, required = 2, preferred = 10))
+
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Goals")))
+        assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 200L))
+    }
+
+    @Test
+    fun `preferred levels add up like required ones, and job demand asks for no more than it needs`() {
+        recipe(rifter, 1, tritanium to 1_500)
+        val manual = listOf(Stockpile(tritanium, "Tritanium", required = 2_000, preferred = 3_000))
+
+        val plan = plan(project("Frigates", rifter to 1), manual = manual, stock = mapOf(tritanium to 4_000L))
+
+        val demand = plan.demands.single { it.item == tritanium }
+        assertThat(demand.required).isEqualTo(3_500)
+        assertThat(demand.preferred).isEqualTo(4_500)
+        assertThat(demand.status).isEqualTo(StockpileStatus.BelowPreferred)
+        assertThat(plan.shoppingList.map { it.item }).containsExactly(tritanium)
+    }
+
+    @Test
+    fun `a preferred level below the required one is rejected`() {
+        assertFailsWith<IllegalArgumentException> { Requirement(tritanium, 100, "test", preferred = 99) }
+    }
 }

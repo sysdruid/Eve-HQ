@@ -44,7 +44,7 @@ Project/Phase/Job vocabulary of `lessons-from-v1.md` where they differ.
 A **project** is the aggregate root of planning. It is defined in code for now, with an enum entry as its name and id,
 and the set of active projects is fixed in code. How projects are created and edited comes later.
 
-- **Goals** (`ProjectGoal`): each goal states requirements, that is item levels needed on hand at cycle start, and hides
+- **Goals** (`ProjectGoal`): each goal states requirements, that is item levels (required, and optionally preferred) needed on hand at cycle start, and hides
   how it computed them. An output goal says "N of X"; a readiness goal (below) says "the direct inputs of any job in this
   selection". The planner never knows which kind it was given.
 - **Stop items:** per project, see above.
@@ -66,8 +66,13 @@ optional **overflow** (consider selling; a flag only, never acted on). There is 
 
 **Contributions add up.** An item's required level is the sum of everything that asks for it, a manual level being one
 contribution. Example, Tritanium with 1,400 on hand: manual 2,000 + project A 1,200 + project B 300 = required 3,500,
-deficit 2,100. The UI shows the contributions per item, so the real, aggregated demand is visible. Preferred adds the same
-way; for derived demand it is `required x (1 + coefficient)` (coefficient 0 by default), optionally plus a flat buffer.
+deficit 2,100. The UI shows the contributions per item, so the real, aggregated demand is visible.
+
+**Preferred is for what the owner obtains elsewhere** (bought, mined, salvaged, harvested). Jobs are sized to **required**
+only. Preferred adds up like required, but it only keeps an item that no job produces on the shopping list: below
+required it is urgent, below preferred the owner keeps gathering, at preferred they can relax. A goal or a manual stockpile
+may state a preferred level; for derived demand on such an item a coefficient (`required x (1 + coefficient)`, 0 by
+default, optionally plus a flat buffer) can supply it. The coefficient is not implemented yet.
 
 **Stock is subtracted once per item,** from the total demand, so two projects cannot both claim the same stock.
 Planning therefore sums the demands of all active projects per item first. An item is built if any project builds it; a
