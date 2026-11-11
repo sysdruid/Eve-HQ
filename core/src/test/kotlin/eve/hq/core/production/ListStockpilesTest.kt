@@ -20,6 +20,13 @@ class ListStockpilesTest {
     private val crystals = Stockpile(item = 100, name = "Multifrequency L", required = 100, preferred = 300)
 
     private val stockpiles = mutableListOf<Stockpile>()
+    private val repository = object : StockpileRepository {
+        override fun all() = stockpiles.toList()
+
+        override fun save(stockpile: Stockpile) = error("not used by listing")
+
+        override fun remove(item: TypeId) = error("not used by listing")
+    }
     private val assets = mutableMapOf<Long, List<AssetItem>>()
 
     private val failing = mutableMapOf<Long, String>()
@@ -34,7 +41,7 @@ class ListStockpilesTest {
     }
 
     private fun list(vararg characters: EveCharacter) = runBlocking {
-        ListStockpiles({ stockpiles.toList() }, source)(characters.toList())
+        ListStockpiles(repository, source)(characters.toList())
     }
 
     @Test

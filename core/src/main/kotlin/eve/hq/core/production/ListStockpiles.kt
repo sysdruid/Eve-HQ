@@ -5,8 +5,13 @@ import eve.hq.core.asset.AssetSource
 import eve.hq.core.attempt
 import eve.hq.core.character.EveCharacter
 
-fun interface StockpileRepository {
+interface StockpileRepository {
     fun all(): List<Stockpile>
+
+    /** Adds the stockpile, or replaces the one for the same item. */
+    fun save(stockpile: Stockpile)
+
+    fun remove(item: TypeId)
 }
 
 data class StockpileRow(val stockpile: Stockpile, val onHand: Long, val status: StockpileStatus)
