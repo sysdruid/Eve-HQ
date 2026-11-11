@@ -44,11 +44,19 @@ data class PlannedJob(
     val totalSeconds: Long = runs * secondsPerRun,
 )
 
-data class PlanPhase(val number: Int, val jobs: List<PlannedJob>)
+/** A layer of the recipe tree: [products] are everything built in it, whether or not the plan still asks for a job. */
+data class PlanPhase(val number: Int, val jobs: List<PlannedJob>, val products: Set<TypeId> = emptySet())
 
-data class Plan(val demands: List<ItemDemand>, val jobs: List<PlannedJob>) {
+data class Plan(
+    val demands: List<ItemDemand>,
+    val jobs: List<PlannedJob>,
+    /** The phase of every item that is built, independent of stock, so phase numbers stay put as stock changes. */
+    val layers: Map<TypeId, Int> = emptyMap(),
+) {
     val phases: List<PlanPhase>
-        get() = jobs.groupBy(PlannedJob::phase).toSortedMap().map { (number, inPhase) -> PlanPhase(number, inPhase) }
+        get() = layers.entries.groupBy({ it.value }, { it.key }).toSortedMap().map { (number, products) ->
+            PlanPhase(number, jobs.filter { it.phase == number }, products.toSet())
+        }
 
     /** Items no job produces and whose stock is below the level the owner wants: what to buy or otherwise obtain. */
     val shoppingList: List<ItemDemand>

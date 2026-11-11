@@ -382,4 +382,34 @@ class PlanProductionTest {
         assertThat(plan.jobs.map { it.runs }).containsExactly(11L, 11L, 8L)
         assertThat(plan.jobs.all { it.totalSeconds <= cycle.usable.seconds }).isTrue()
     }
+
+    @Test
+    fun `a layer stays a phase even when stock leaves it nothing to do`() {
+        chainRecipes()
+
+        val plan = plan(project("Frigates", rifter to 1), stock = mapOf(component to 5L))
+
+        assertThat(plan.jobs.map { it.product to it.phase }).containsExactly(rifter to 2)
+        assertThat(plan.phases.map { it.number }).containsExactly(1, 2)
+        assertThat(plan.phases[0].jobs).isEmpty()
+        assertThat(plan.phases[0].products).containsExactly(component)
+        assertThat(plan.phases[1].products).containsExactly(rifter)
+    }
+
+    @Test
+    fun `phase numbers do not shift with stock, even for an item needed at several depths`() {
+        recipe(rifter, 1, component to 5, assembly to 1)
+        recipe(assembly, 1, component to 2)
+        recipe(component, 1, tritanium to 8)
+
+        val withoutStock = plan(project("Frigates", rifter to 1))
+        val assemblyOnHand = plan(project("Frigates", rifter to 1), stock = mapOf(assembly to 1L))
+
+        // Without the assembly job the component is only needed one layer down, but its phase stays the deepest it can be.
+        assertThat(withoutStock.jobs.associate { it.product to it.phase }).containsEntry(component, 1).containsEntry(rifter, 3)
+        assertThat(assemblyOnHand.jobs.associate { it.product to it.phase })
+            .containsExactlyInAnyOrderEntriesOf(mapOf(component to 1, rifter to 3))
+        assertThat(assemblyOnHand.phases.map { it.number }).containsExactly(1, 2, 3)
+        assertThat(assemblyOnHand.phases[1].products).containsExactly(assembly)
+    }
 }

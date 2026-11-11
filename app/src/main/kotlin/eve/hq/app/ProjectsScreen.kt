@@ -67,7 +67,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                 Tab(
                     selected = tab == index + 2,
                     onClick = { selectedTab = index + 2 },
-                    text = { Text("${phase.title} (${phase.jobs.size})") },
+                    text = { Text("${phase.title} (${phase.toStart.size})") },
                 )
             }
             Tab(
@@ -97,13 +97,19 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                     items(state.hullJobs) { line -> JobLineItem(line) }
                 }
                 else -> {
-                    item {
-                        Text(
-                            "Runs in parallel with the other phases.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    val phase = state.phases[tab - 2]
+                    item { Text("Runs in parallel with the other phases.", style = MaterialTheme.typography.bodySmall) }
+                    if (phase.ready.isNotEmpty()) {
+                        item { Text("Ready to deliver", style = MaterialTheme.typography.titleMedium) }
+                        items(phase.ready) { line -> JobLineItem(line) }
                     }
-                    items(state.phases[tab - 2].jobs) { Text(it) }
+                    if (phase.running.isNotEmpty()) {
+                        item { Text("Running", style = MaterialTheme.typography.titleMedium) }
+                        items(phase.running) { line -> JobLineItem(line) }
+                    }
+                    item { Text("To start", style = MaterialTheme.typography.titleMedium) }
+                    if (phase.toStart.isEmpty()) item { Text("Nothing to start.") }
+                    items(phase.toStart) { Text(it) }
                 }
             }
         }

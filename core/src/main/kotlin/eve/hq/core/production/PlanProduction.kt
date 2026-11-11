@@ -17,6 +17,23 @@ class PlanProduction(private val recipes: RecipeBook) {
         manual: List<Stockpile> = emptyList(),
         stock: Map<TypeId, Long> = emptyMap(),
     ): Plan {
+        val actual = expand(projects, manual, stock)
+        // Phases come from the structure of the recipe tree, not from what is left to do: planning once more without stock
+        // shows every layer, so a phase keeps its number (and its tab) however much stock covers it.
+        val structure = if (stock.isEmpty()) actual else expand(projects, manual, emptyMap())
+        val depthOf = structure.jobs.associate { it.product to it.phase }
+        val deepest = depthOf.values.maxOrNull() ?: 0
+        // Depth counts from the goals, but phases read upstream first.
+        fun number(depth: Int) = deepest - depth + 1
+        val layers = depthOf.mapValues { (_, depth) -> number(depth) }
+        val jobs = actual.jobs.map { it.copy(phase = number(depthOf[it.product] ?: it.phase)) }
+        return Plan(actual.demands, jobs, layers)
+    }
+
+    /** Demands and jobs, each job's phase being its raw depth from the goals. */
+    private class Expansion(val demands: List<ItemDemand>, val jobs: List<PlannedJob>)
+
+    private fun expand(projects: List<Project>, manual: List<Stockpile>, stock: Map<TypeId, Long>): Expansion {
         val contributions = linkedMapOf<TypeId, MutableList<Contribution>>()
         val reachedBy = mutableMapOf<TypeId, MutableSet<Project>>()
         // The deepest layer an item is needed at, so its job comes after every job that consumes it.
@@ -60,9 +77,7 @@ class PlanProduction(private val recipes: RecipeBook) {
                 depth.merge(material, phase + 1, ::maxOf)
             }
         }
-        // Depth counts from the goals, but phases read upstream first: renumber once the deepest layer is known.
-        val deepest = jobs.maxOfOrNull(PlannedJob::phase) ?: 0
-        return Plan(demands, jobs.map { it.copy(phase = deepest - it.phase + 1) })
+        return Expansion(demands, jobs)
     }
 
     /** Whether any project builds [item]; used only to order the walk, so it may include items nobody reaches. */

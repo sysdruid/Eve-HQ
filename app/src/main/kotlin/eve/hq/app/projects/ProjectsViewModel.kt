@@ -4,6 +4,7 @@ import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.character.ListCharacters
 import eve.hq.app.jobs.JobLine
 import eve.hq.app.jobs.toLine
+import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
 import eve.hq.core.production.ItemCatalog
@@ -29,7 +30,13 @@ import java.util.Locale
 import java.util.logging.Level
 import java.util.logging.Logger
 
-data class PhaseBlock(val title: String, val jobs: List<String>)
+/** One phase: the jobs the plan still asks for, and the running and finished (undelivered) jobs making its products. */
+data class PhaseBlock(
+    val title: String,
+    val toStart: List<String>,
+    val running: List<JobLine> = emptyList(),
+    val ready: List<JobLine> = emptyList(),
+)
 
 data class ShoppingLine(val text: String, val status: StockpileStatus)
 
@@ -93,7 +100,14 @@ class ProjectsViewModel(
                         title = project.title,
                         goals = result.goals.map { goal -> "${count(goal.required)} × ${name(goal.item)}" },
                         phases = result.plan.phases.map { phase ->
-                            PhaseBlock("Phase ${phase.number}", phase.jobs.map(::jobLine))
+                            val making = result.running.rows.filter { it.productId in phase.products && it.makesItems() }
+                            val (done, going) = making.partition { it.isReady(now) }
+                            PhaseBlock(
+                                title = "Phase ${phase.number}",
+                                toStart = phase.jobs.map(::jobLine),
+                                running = going.map { row -> row.toLine(now) },
+                                ready = done.map { row -> row.toLine(now) },
+                            )
                         },
                         shopping = result.plan.shoppingList.map(::shoppingLine),
                         failures = result.failures,
@@ -125,6 +139,8 @@ class ProjectsViewModel(
     }
 
     /** "Legion 8, Tengu 8 in progress (2 jobs)": runs of a hull job are hulls, summed per product. */
+    private fun JobRow.makesItems() = activity == IndustryActivity.Manufacturing || activity == IndustryActivity.Reaction
+
     private fun summary(rows: List<JobRow>): String {
         if (rows.isEmpty()) return ""
         val perProduct = rows.groupBy { it.itemName }.map { (name, jobs) -> "$name ${count(jobs.sumOf { it.runs }.toLong())}" }

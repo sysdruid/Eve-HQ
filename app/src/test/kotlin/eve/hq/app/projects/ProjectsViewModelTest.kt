@@ -104,7 +104,7 @@ class ProjectsViewModelTest {
         assertThat(state.title).isEqualTo("1000 Amarr Shuttles")
         assertThat(state.goals).containsExactly("1,000 × Amarr Shuttle")
         assertThat(state.phases).containsExactly(
-            PhaseBlock("Phase 1", listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle")),
+            PhaseBlock("Phase 1", toStart = listOf("Amarr Shuttle Blueprint  1,000 runs × 1h 40m = 69d 10h  → Amarr Shuttle")),
         )
         assertThat(state.shopping).containsExactly(
             ShoppingLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired),
@@ -196,5 +196,38 @@ class ProjectsViewModelTest {
 
         assertThat(state.jobFailures.single().message).isEqualTo("ESI jobs are down")
         assertThat(state.phases).isNotEmpty()
+    }
+
+    private fun anyJob(id: Long, product: Long, runs: Int, endsInSeconds: Long, activity: IndustryActivity = IndustryActivity.Manufacturing) =
+        job(id, product, "Product $product", runs).copy(endsAt = now.plusSeconds(endsInSeconds), activity = activity)
+
+    @Test
+    fun `a phase shows the jobs running and ready to deliver for its products, and what is still to start`() {
+        system.store(1, "Alice")
+        running = listOf(
+            anyJob(1, 11134, runs = 10, endsInSeconds = 3600), // running
+            anyJob(2, 11134, runs = 5, endsInSeconds = -7200), // finished, not delivered
+            anyJob(3, 587, runs = 20, endsInSeconds = 3600), // another product
+            anyJob(4, 11134, runs = 300, endsInSeconds = 3600, activity = IndustryActivity.Copying), // makes no items
+        )
+
+        val phase = viewModel().state.value.phases.single()
+
+        assertThat(phase.running).hasSize(1)
+        assertThat(phase.ready).hasSize(1)
+        assertThat(phase.ready.single().text).contains("Alice-Product 11134 [5]", "done")
+        assertThat(phase.toStart.single()).contains("985 runs") // 1,000 less the 15 on their way
+    }
+
+    @Test
+    fun `a phase with nothing left to start still shows its running jobs`() {
+        system.store(1, "Alice")
+        running = listOf(anyJob(1, 11134, runs = 1_000, endsInSeconds = 3600))
+
+        val state = viewModel().state.value
+
+        assertThat(state.phases.map { it.title }).containsExactly("Phase 1")
+        assertThat(state.phases.single().toStart).isEmpty()
+        assertThat(state.phases.single().running).hasSize(1)
     }
 }

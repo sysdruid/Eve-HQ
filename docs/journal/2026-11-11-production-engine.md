@@ -50,6 +50,10 @@
   shaped it: running *hull* jobs must not reduce the requirement (readiness is "able to start N jobs", and starting them spends the
   materials), only upstream output that will land in the hangars does. The plan loads the jobs once and hands them to the tab, which
   made a separate project-jobs use case redundant.
+- Showing running jobs per phase exposed a flaw: phases were numbered from the jobs the plan still asked for, so once running
+  output covered a whole layer its tab would vanish and the others renumber, exactly when its running jobs mattered. Phases now
+  come from a structural pass without stock (planning twice, about 0.4 s each on the real trees), and the jobs and running jobs
+  hang off those stable layers.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written
