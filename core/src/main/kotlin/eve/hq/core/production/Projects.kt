@@ -16,9 +16,14 @@ data class ReadinessConfig(val hulls: List<String>, val cycle: CycleSettings, va
  * long a job of the phases below may run.
  */
 val MEDIUM_T2_HULLS = ReadinessConfig(
-    hulls = listOf("Zealot", "Sacrilege", "Deimos", "Ishtar", "Absolution", "Impel"),
+    hulls = listOf(
+        "Zealot", "Sacrilege", "Deimos", "Ishtar", "Absolution", "Guardian","Oneiros","Curse", "Pilgrim",
+        "Arazu", "Lachesis", "Devoter","Phobos",
+        "Impel","Prorator","Viator","Occator","Hulk","Skiff","Mackinaw",
+        "Absolution","Damnation", "Astarte", "Eos"
+    ),
     cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4),
-    jobs = 10,
+    jobs = 2,
 )
 
 class Projects(
