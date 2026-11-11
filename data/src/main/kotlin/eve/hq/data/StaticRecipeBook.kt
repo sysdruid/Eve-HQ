@@ -1,5 +1,6 @@
 package eve.hq.data
 
+import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.production.Recipe
 import eve.hq.core.production.RecipeBook
 import eve.hq.core.production.TypeId
@@ -57,7 +58,8 @@ class StaticRecipeBook(dataSource: DataSource) : RecipeBook {
             .and(BLUEPRINT_MATERIALS.ACTIVITY.eq(maker.value2()))
             .fetch { it.value1() to it.value2() }
             .toMap()
-        return Recipe(product, maker.value3(), materials, blueprint, maker.value4())
+        val activity = if (maker.value2() == "reaction") IndustryActivity.Reaction else IndustryActivity.Manufacturing
+        return Recipe(product, maker.value3(), materials, blueprint, maker.value4(), activity)
     }
 
     private companion object {

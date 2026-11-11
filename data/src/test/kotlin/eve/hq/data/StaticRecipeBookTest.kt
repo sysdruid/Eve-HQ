@@ -1,5 +1,6 @@
 package eve.hq.data
 
+import eve.hq.core.industry.IndustryActivity
 import eve.hq.core.production.Recipe
 import org.assertj.core.api.Assertions.assertThat
 import org.h2.jdbcx.JdbcDataSource
@@ -48,7 +49,8 @@ class StaticRecipeBookTest {
         type(34, "Tritanium")
         blueprint(11135, product = 11134, seconds = 6000, materials = mapOf(34L to 2778))
 
-        assertThat(book.forProduct(11134)).isEqualTo(Recipe(11134, 1, mapOf(34L to 2778), blueprint = 11135, secondsPerRun = 6000))
+        assertThat(book.forProduct(11134))
+            .isEqualTo(Recipe(11134, 1, mapOf(34L to 2778), blueprint = 11135, secondsPerRun = 6000, activity = IndustryActivity.Manufacturing))
     }
 
     @Test
@@ -57,7 +59,7 @@ class StaticRecipeBookTest {
         type(16633, "Tungsten")
         blueprint(46207, product = 16634, activity = "reaction", perRun = 10_000, seconds = 10_800, materials = mapOf(16633L to 100))
 
-        assertThat(book.forProduct(16634)).isEqualTo(Recipe(16634, 10_000, mapOf(16633L to 100), 46207, 10_800))
+        assertThat(book.forProduct(16634)).isEqualTo(Recipe(16634, 10_000, mapOf(16633L to 100), 46207, 10_800, IndustryActivity.Reaction))
     }
 
     @Test
