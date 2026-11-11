@@ -66,4 +66,20 @@ class MigrationsTest {
             },
         )
     }
+
+    // Regression guard: the recipe tables (V11) arrived after some databases had already imported blueprints from a
+    // download. Their saved ETag made every later import report "already up to date", leaving recipes empty for good.
+    @Test
+    fun `migrating past the recipe tables forgets saved download validators so recipes get imported`() {
+        Flyway.configure().dataSource(dataSource).locations(Migrations.DEFAULT_LOCATION).target("13").load().migrate()
+        dataSource.connection.use { c ->
+            c.createStatement().executeUpdate(
+                "insert into static_data_import (source, etag, last_modified) values ('https://sde.test/latest.zip', '\"v2\"', 'Wed, 04 Nov 2026 12:14:06 GMT')",
+            )
+        }
+
+        Migrations.migrate(dataSource)
+
+        assertEquals(0, query("select count(*) from static_data_import") { rs -> rs.next(); rs.getInt(1) })
+    }
 }
