@@ -33,7 +33,14 @@ data class ItemDemand(val item: TypeId, val contributions: List<Contribution>, v
  * the goals' own jobs, then the jobs making their inputs, and so on. Phases are not an order to run in. All of them
  * run in parallel within the cycle, each making the input the next phase consumes.
  */
-data class PlannedJob(val product: TypeId, val runs: Long, val projects: Set<String>, val phase: Int)
+data class PlannedJob(
+    val product: TypeId,
+    val runs: Long,
+    val projects: Set<String>,
+    val phase: Int,
+    val blueprint: TypeId,
+    val secondsPerRun: Int,
+)
 
 data class PlanPhase(val number: Int, val jobs: List<PlannedJob>)
 

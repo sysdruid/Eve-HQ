@@ -45,7 +45,7 @@ class PlanProduction(private val recipes: RecipeBook) {
             if (recipe == null || expanders.isEmpty() || demand.deficit == 0L) continue
             val runs = (demand.deficit + recipe.perRun - 1) / recipe.perRun
             val phase = depth.getValue(item)
-            jobs += PlannedJob(item, runs, expanders.mapTo(linkedSetOf(), Project::name), phase)
+            jobs += PlannedJob(item, runs, expanders.mapTo(linkedSetOf(), Project::name), phase, recipe.blueprint, recipe.secondsPerRun)
             recipe.materials.forEach { (material, perRun) ->
                 add(material, Jobs(item), perRun * runs)
                 reachedBy.getOrPut(material) { linkedSetOf() } += expanders

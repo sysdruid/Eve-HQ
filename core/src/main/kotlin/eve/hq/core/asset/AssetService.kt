@@ -30,6 +30,10 @@ data class OwnedAssets(
     val failures: List<AssetLoadFailure>,
     val snapshots: List<AssetSnapshotInfo>,
 ) {
+    /** Total per type id over every character and container: the pooled stock. */
+    fun quantities(): Map<Long, Long> =
+        items.groupBy { it.type.id }.mapValues { (_, owned) -> owned.sumOf { it.quantity.toLong() } }
+
     /** Total of one type over every character and container, at [stationId] only when given. */
     fun quantityOf(type: Long, stationId: Long? = null): Long =
         items.filter { it.type.id == type && (stationId == null || it.station.id == stationId) }.sumOf { it.quantity.toLong() }

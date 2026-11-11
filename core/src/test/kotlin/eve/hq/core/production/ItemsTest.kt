@@ -2,6 +2,7 @@ package eve.hq.core.production
 
 import org.assertj.core.api.Assertions.assertThat
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 class ItemsTest {
     private val names = mapOf(1L to "Capital Construction Parts", 2L to "Fuel Block", 3L to "Rifter", 4L to "Tritanium")
@@ -10,6 +11,8 @@ class ItemsTest {
         override fun itemName(item: TypeId) = names[item]
 
         override fun groupName(item: TypeId) = groups[item]
+
+        override fun findItem(name: String) = names.entries.firstOrNull { it.value.equals(name, ignoreCase = true) }?.key
     })
 
     @Test
@@ -30,9 +33,9 @@ class ItemsTest {
     @Test
     fun `a project can combine the questions with plain boolean operators`() {
         val recipes = mapOf(
-            3L to Recipe(3, 1, mapOf(1L to 5, 2L to 4, 4L to 100)),
-            1L to Recipe(1, 1, mapOf(4L to 10)),
-            2L to Recipe(2, 1, mapOf(4L to 7)),
+            3L to Recipe(3, 1, mapOf(1L to 5, 2L to 4, 4L to 100), 1003, 60),
+            1L to Recipe(1, 1, mapOf(4L to 10), 1001, 60),
+            2L to Recipe(2, 1, mapOf(4L to 7), 1002, 60),
         )
         // Builds composites and the hull itself, but buys fuel blocks: "not an item" is just `!`.
         val project = FixedRequirementsProject("Frigates", listOf(Requirement(3, 2, "test"))) {
@@ -44,5 +47,13 @@ class ItemsTest {
         assertThat(plan.jobs.map { it.product }).containsExactlyInAnyOrder(3L, 1L)
         assertThat(plan.shoppingList.associate { it.item to it.deficit })
             .containsExactlyInAnyOrderEntriesOf(mapOf(2L to 8L, 4L to 300L))
+    }
+
+    @Test
+    fun `an item is found by name, and a project definition fails at once on a misspelt one`() {
+        assertThat(items.idOf("rifter")).isEqualTo(3)
+        assertThat(items.idOf("Rifterr")).isNull()
+        assertThat(items.id("Tritanium")).isEqualTo(4)
+        assertFailsWith<IllegalArgumentException> { items.id("Rifterr") }
     }
 }

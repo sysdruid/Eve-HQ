@@ -12,7 +12,7 @@ class PlanProductionTest {
     private val recipes = mutableMapOf<TypeId, Recipe>()
 
     private fun recipe(product: TypeId, perRun: Int = 1, vararg materials: Pair<TypeId, Int>) {
-        recipes[product] = Recipe(product, perRun, materials.toMap())
+        recipes[product] = Recipe(product, perRun, materials.toMap(), blueprint = product + 1_000_000, secondsPerRun = 600)
     }
 
     private fun project(name: String, vararg required: Pair<TypeId, Long>, stop: Set<TypeId> = emptySet()) =
@@ -30,7 +30,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 3))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1, rifter + 1_000_000, 600))
         assertThat(plan.shoppingList.associate { it.item to it.deficit })
             .containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 300L, pyerite to 60L))
     }
@@ -52,7 +52,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 10))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1, rifter + 1_000_000, 600))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 30L))
     }
 
@@ -99,7 +99,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 3), stock = mapOf(rifter to 1L))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Frigates"), 1))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Frigates"), 1, rifter + 1_000_000, 600))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 200L))
     }
 
@@ -120,7 +120,7 @@ class PlanProductionTest {
         val plan = plan(project("Rifters", rifter to 1), project("Merlins", merlin to 1))
 
         assertThat(plan.jobs.filter { it.product == component })
-            .containsExactly(PlannedJob(component, 8, setOf("Rifters", "Merlins"), 2))
+            .containsExactly(PlannedJob(component, 8, setOf("Rifters", "Merlins"), 2, component + 1_000_000, 600))
     }
 
     @Test
@@ -200,7 +200,7 @@ class PlanProductionTest {
         )
 
         assertThat(plan.jobs.single { it.product == component })
-            .isEqualTo(PlannedJob(component, 8, setOf("Merlins"), 2))
+            .isEqualTo(PlannedJob(component, 8, setOf("Merlins"), 2, component + 1_000_000, 600))
         assertThat(shopped(plan)).containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 64L, pyerite to 20L))
     }
 
@@ -233,7 +233,7 @@ class PlanProductionTest {
 
         val plan = plan(goal(rifter, required = 2, preferred = 10))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Goals"), 1))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Goals"), 1, rifter + 1_000_000, 600))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 200L))
     }
 
