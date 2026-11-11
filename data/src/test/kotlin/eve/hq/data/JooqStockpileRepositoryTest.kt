@@ -1,6 +1,8 @@
 package eve.hq.data
 
+import eve.hq.core.asset.AssetLocation
 import eve.hq.core.production.Stockpile
+import eve.hq.core.production.StockpileKey
 import org.assertj.core.api.Assertions.assertThat
 import org.h2.jdbcx.JdbcDataSource
 import java.util.UUID
@@ -37,8 +39,24 @@ class JooqStockpileRepositoryTest {
         repository.save(Stockpile(100, "Multifrequency L", required = 100))
         repository.save(Stockpile(200, "Fuel blocks", required = 10))
 
-        repository.remove(100)
+        repository.remove(StockpileKey(100))
 
         assertThat(repository.all().map { it.item }).containsExactly(200L)
+    }
+
+    @Test
+    fun `the same item can be kept anywhere and at several stations, each replaced and removed on its own`() {
+        val jita = AssetLocation(60000001, "Jita IV")
+        val structure = AssetLocation(1_000_000_000_001, null)
+        val anywhere = Stockpile(34, "Tritanium", required = 100)
+        val inJita = Stockpile(34, "Tritanium", required = 200, station = jita)
+        val inStructure = Stockpile(34, "Tritanium", required = 300, station = structure)
+        listOf(anywhere, inJita, inStructure).forEach(repository::save)
+        assertThat(repository.all()).containsExactlyInAnyOrder(anywhere, inJita, inStructure)
+
+        repository.save(inJita.copy(required = 250))
+        repository.remove(StockpileKey(34, structure.id))
+
+        assertThat(repository.all()).containsExactlyInAnyOrder(anywhere, inJita.copy(required = 250))
     }
 }

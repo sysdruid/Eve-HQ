@@ -30,9 +30,14 @@ data class OwnedAssets(
     val failures: List<AssetLoadFailure>,
     val snapshots: List<AssetSnapshotInfo>,
 ) {
-    /** Total quantity per type id over every character and container. */
-    fun quantities(): Map<Long, Long> =
-        items.groupBy { it.type.id }.mapValues { (_, owned) -> owned.sumOf { it.quantity.toLong() } }
+    /** Total of one type over every character and container, at [stationId] only when given. */
+    fun quantityOf(type: Long, stationId: Long? = null): Long =
+        items.filter { it.type.id == type && (stationId == null || it.station.id == stationId) }.sumOf { it.quantity.toLong() }
+
+    /** Each station or structure that holds something, once, by name; places without a known name come last. */
+    fun stations(): List<AssetLocation> = items.map { it.station }.groupBy { it.id }
+        .map { (id, places) -> AssetLocation(id, places.firstNotNullOfOrNull { it.name }) }
+        .sortedWith(compareBy({ it.name == null }, { it.name?.lowercase() }, { it.id }))
 }
 
 /**

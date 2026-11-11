@@ -2,6 +2,7 @@ package eve.hq.app
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import eve.hq.app.stockpiles.StockpileForm
 import eve.hq.app.stockpiles.StockpilesViewModel
+import eve.hq.core.asset.AssetLocation
 import eve.hq.core.production.StockpileStatus
 
 @Composable
@@ -37,7 +41,7 @@ fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> U
             Button(onClick = viewModel::startAdd, enabled = state.form == null) { Text("Add stockpile") }
             OutlinedButton(onClick = { viewModel.refresh() }, enabled = !state.loading) { Text("Refresh") }
         }
-        state.form?.let { StockpileFormPanel(it, viewModel) }
+        state.form?.let { StockpileFormPanel(it, state.stations, viewModel) }
         if (state.loading) {
             Text("Loading stockpiles…")
             LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -58,8 +62,8 @@ fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> U
                     Text(statusLabel(line.status), color = statusColor(line.status), modifier = Modifier.padding(end = 4.dp))
                     // Clicking the name jumps to the assets of this item, to see where it is scattered.
                     Text(line.text, modifier = Modifier.weight(1f).clickable { onShowAssets(line.name) })
-                    OutlinedButton(onClick = { viewModel.edit(line.item) }) { Text("Edit") }
-                    OutlinedButton(onClick = { viewModel.remove(line.item) }) { Text("Remove") }
+                    OutlinedButton(onClick = { viewModel.edit(line.key) }) { Text("Edit") }
+                    OutlinedButton(onClick = { viewModel.remove(line.key) }) { Text("Remove") }
                 }
             }
         }
@@ -67,7 +71,7 @@ fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> U
 }
 
 @Composable
-private fun StockpileFormPanel(form: StockpileForm, viewModel: StockpilesViewModel) {
+private fun StockpileFormPanel(form: StockpileForm, stations: List<AssetLocation>, viewModel: StockpilesViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val item = form.item
         if (item == null) {
@@ -88,6 +92,7 @@ private fun StockpileFormPanel(form: StockpileForm, viewModel: StockpilesViewMod
         } else {
             Text(item.name, style = MaterialTheme.typography.titleMedium)
         }
+        StationPicker(form.station, stations, viewModel::chooseStation)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LevelField("Required", form.required, viewModel::setRequired, Modifier.weight(1f))
             LevelField("Preferred (optional)", form.preferred, viewModel::setPreferred, Modifier.weight(1f))
@@ -100,6 +105,22 @@ private fun StockpileFormPanel(form: StockpileForm, viewModel: StockpilesViewMod
         }
     }
 }
+
+@Composable
+private fun StationPicker(selected: AssetLocation?, stations: List<AssetLocation>, onChoose: (AssetLocation?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { open = true }) { Text("Station: ${selected?.let(::placeName) ?: "Anywhere"}") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Anywhere") }, onClick = { onChoose(null); open = false })
+            stations.forEach { station ->
+                DropdownMenuItem(text = { Text(placeName(station)) }, onClick = { onChoose(station); open = false })
+            }
+        }
+    }
+}
+
+private fun placeName(location: AssetLocation) = location.name ?: "Location ${location.id}"
 
 @Composable
 private fun LevelField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier) {

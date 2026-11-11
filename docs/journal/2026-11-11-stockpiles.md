@@ -29,6 +29,10 @@
 - Follow-ups from first use: clicking a stockpile jumps to the Assets tab with the item name in the search box (the
   existing text search already matches type names), and the per-character "inventory updated" lines became one line
   with the oldest time, which is the useful answer to how stale the list can be.
+- Location came next: a stockpile is an item anywhere or at one station (`StockpileKey(item, stationId?)`), picked from
+  the stations found in the assets. That changed the identity of a stockpile, so migration V13 widens the primary key;
+  null cannot be part of a key, so "anywhere" is stored as 0 and mapped back in the repository. Containers were
+  dropped on purpose: their item ids are per character and change on repack.
 
 ### Article Hook
 - **Publication Takeaway:** Discussing the domain concept before coding removed a whole speculative module: the

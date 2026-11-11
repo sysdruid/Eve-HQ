@@ -173,17 +173,37 @@ class AssetServiceTest {
     }
 
     @Test
-    fun `quantities add a type up over every container and character`() = runBlocking<Unit> {
+    fun `a quantity adds a type up over every container and character, optionally at one station`() = runBlocking<Unit> {
         val bob = EveCharacter(2, "Bob", AuthToken("access", "refresh", Instant.MAX))
         assets = listOf(
             item(700, 100, "Container", 1, 60000001, "Jita IV"),
             item(701, 34, "Tritanium", 40, 700),
             item(702, 34, "Tritanium", 2_000_000_000, 60000001, "Jita IV"),
+            item(703, 34, "Tritanium", 7, 60000002, "Amarr VIII"),
         )
 
-        val total = service.assets(listOf(alice, bob)).quantities()
+        val owned = service.assets(listOf(alice, bob))
 
-        assertThat(total[34]).isEqualTo(2 * (2_000_000_000L + 40))
-        assertThat(total[100]).isEqualTo(2L)
+        assertThat(owned.quantityOf(34)).isEqualTo(2 * (2_000_000_000L + 47))
+        assertThat(owned.quantityOf(34, stationId = 60000001)).isEqualTo(2 * (2_000_000_000L + 40))
+        assertThat(owned.quantityOf(35)).isZero()
+    }
+
+    @Test
+    fun `the stations known from the assets are listed once each by name`() = runBlocking<Unit> {
+        assets = listOf(
+            item(1, 34, "Tritanium", 1, 60000002, "Jita IV"),
+            item(2, 34, "Tritanium", 1, 60000002, "Jita IV"),
+            item(3, 34, "Tritanium", 1, 60000001, "Amarr VIII"),
+            item(4, 34, "Tritanium", 1, 1_000_000_000_001),
+        )
+
+        val stations = service.assets(listOf(alice)).stations()
+
+        assertThat(stations).containsExactly(
+            AssetLocation(60000001, "Amarr VIII"),
+            AssetLocation(60000002, "Jita IV"),
+            AssetLocation(1_000_000_000_001, null),
+        )
     }
 }

@@ -3,10 +3,12 @@ package eve.hq.app.stockpiles
 import java.util.logging.Level
 import java.util.logging.Logger
 import eve.hq.core.asset.AssetLoadFailure
+import eve.hq.core.asset.AssetLocation
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.production.ItemType
 import eve.hq.core.production.ListStockpiles
 import eve.hq.core.production.Stockpile
+import eve.hq.core.production.StockpileKey
 import eve.hq.core.production.StockpileRepository
 import eve.hq.core.production.StockpileStatus
 import eve.hq.core.production.TypeCatalog
@@ -23,11 +25,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-data class StockpileLine(val item: TypeId, val name: String, val text: String, val status: StockpileStatus)
+data class StockpileLine(val key: StockpileKey, val name: String, val text: String, val status: StockpileStatus)
 
 data class StockpileForm(
     val item: ItemType? = null,
     val suggestions: List<ItemType> = emptyList(),
+    /** null: anywhere. */
+    val station: AssetLocation? = null,
+    /** The stockpile being edited, so a changed station moves it instead of leaving the old one behind. */
+    val editing: StockpileKey? = null,
     val required: String = "",
     val preferred: String = "",
     val overflow: String = "",
@@ -40,6 +46,8 @@ data class StockpilesUiState(
     val failures: List<AssetLoadFailure> = emptyList(),
     val error: String? = null,
     val form: StockpileForm? = null,
+    /** Where the assets are: the choices for a stockpile's station. */
+    val stations: List<AssetLocation> = emptyList(),
 )
 
 private val log = Logger.getLogger(StockpilesViewModel::class.java.name)
@@ -65,18 +73,22 @@ class StockpilesViewModel(
 
     fun chooseItem(item: ItemType) = updateForm { it.copy(item = item, suggestions = emptyList(), error = null) }
 
+    fun chooseStation(station: AssetLocation?) = updateForm { it.copy(station = station, error = null) }
+
     fun setRequired(text: String) = updateForm { it.copy(required = text, error = null) }
 
     fun setPreferred(text: String) = updateForm { it.copy(preferred = text, error = null) }
 
     fun setOverflow(text: String) = updateForm { it.copy(overflow = text, error = null) }
 
-    fun edit(item: TypeId) {
-        val pile = known[item] ?: return
+    fun edit(key: StockpileKey) {
+        val pile = known[key] ?: return
         _state.update {
             it.copy(
                 form = StockpileForm(
                     item = ItemType(pile.item, pile.name),
+                    station = pile.station,
+                    editing = pile.key,
                     required = pile.required.toString(),
                     preferred = pile.preferred?.toString().orEmpty(),
                     overflow = pile.overflow?.toString().orEmpty(),
@@ -96,15 +108,18 @@ class StockpilesViewModel(
             return
         }
         scope.launch {
-            withContext(io) { stockpiles.save(pile) }
+            withContext(io) {
+                stockpiles.save(pile)
+                form.editing?.takeIf { it != pile.key }?.let(stockpiles::remove)
+            }
             _state.update { it.copy(form = null) }
             load(restart = true, fetch = false)
         }
     }
 
-    fun remove(item: TypeId) {
+    fun remove(key: StockpileKey) {
         scope.launch {
-            withContext(io) { stockpiles.remove(item) }
+            withContext(io) { stockpiles.remove(key) }
             load(restart = true, fetch = false)
         }
     }
@@ -117,6 +132,7 @@ class StockpilesViewModel(
             required = level(form.required, "Required") ?: throw IllegalArgumentException("Required level must be a whole number"),
             preferred = level(form.preferred, "Preferred"),
             overflow = level(form.overflow, "Overflow"),
+            station = form.station,
         )
     }
 
@@ -131,7 +147,7 @@ class StockpilesViewModel(
         _state.update { state -> state.copy(form = state.form?.let(change)) }
 
     private var refreshJob: Job? = null
-    private var known = emptyMap<TypeId, Stockpile>()
+    private var known = emptyMap<StockpileKey, Stockpile>()
 
     init {
         load(restart = false, fetch = false)
@@ -146,9 +162,9 @@ class StockpilesViewModel(
         refreshJob = scope.launch {
             try {
                 val listing = withContext(io) { listStockpiles(listCharacters(), fetch) }
-                known = listing.rows.associate { it.stockpile.item to it.stockpile }
+                known = listing.rows.associate { it.stockpile.key to it.stockpile }
                 _state.update {
-                    it.copy(loading = false, lines = listing.rows.map(::line), failures = listing.failures)
+                    it.copy(loading = false, lines = listing.rows.map(::line), failures = listing.failures, stations = listing.stations)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -166,7 +182,8 @@ class StockpilesViewModel(
             pile.preferred?.let { "preferred ${count(it)}" },
             pile.overflow?.let { "overflow ${count(it)}" },
         )
-        return StockpileLine(pile.item, pile.name, "${pile.name}  on hand ${count(row.onHand)}  ${levels.joinToString("  ")}", row.status)
+        val where = pile.station?.let { " @ ${it.name ?: "Location ${it.id}"}" }.orEmpty()
+        return StockpileLine(pile.key, pile.name, "${pile.name}$where  on hand ${count(row.onHand)}  ${levels.joinToString("  ")}", row.status)
     }
 
     private fun count(value: Long) = "%,d".format(Locale.ROOT, value)

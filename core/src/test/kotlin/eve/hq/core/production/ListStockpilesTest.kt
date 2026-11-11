@@ -31,7 +31,7 @@ class ListStockpilesTest {
 
         override fun save(stockpile: Stockpile) = error("not used by listing")
 
-        override fun remove(item: TypeId) = error("not used by listing")
+        override fun remove(key: StockpileKey) = error("not used by listing")
     }
     private val assets = mutableMapOf<Long, List<AssetItem>>()
 
@@ -118,6 +118,35 @@ class ListStockpilesTest {
 
     private fun asset(itemId: Long, typeId: Long, quantity: Int, location: Long) =
         AssetItem(itemId, AssetType(typeId, null), null, quantity, AssetLocation(location, null))
+
+    @Test
+    fun `a stockpile at a station counts only what is there, and each station has its own`() {
+        val jita = AssetLocation(60000001, "Jita IV")
+        val raitaru = AssetLocation(1_000_000_000_001, "Raitaru")
+        val everywhere = Stockpile(item = 34, name = "Tritanium", required = 100)
+        val inJita = everywhere.copy(station = jita)
+        val inRaitaru = everywhere.copy(station = raitaru, required = 1_000)
+        stockpiles += listOf(everywhere, inJita, inRaitaru)
+        assets[alice.id] = listOf(
+            AssetItem(1, AssetType(34, "Tritanium"), null, 150, jita),
+            AssetItem(2, AssetType(34, "Tritanium"), null, 600, raitaru),
+            AssetItem(3, AssetType(35, "Pyerite"), null, 9_999, raitaru),
+        )
+
+        val rows = list(alice).rows.associate { it.stockpile.station?.name to it.onHand }
+
+        assertThat(rows).containsExactlyInAnyOrderEntriesOf(mapOf(null to 750L, "Jita IV" to 150L, "Raitaru" to 600L))
+    }
+
+    @Test
+    fun `the listing offers the stations the assets are in`() {
+        assets[alice.id] = listOf(
+            AssetItem(1, AssetType(34, "Tritanium"), null, 1, AssetLocation(60000001, "Jita IV")),
+            AssetItem(2, AssetType(35, "Pyerite"), null, 1, AssetLocation(60000001, "Jita IV")),
+        )
+
+        assertThat(list(alice).stations).containsExactly(AssetLocation(60000001, "Jita IV"))
+    }
 
     @Test
     fun `two consumers of one asset service share a single load`() = runBlocking<Unit> {

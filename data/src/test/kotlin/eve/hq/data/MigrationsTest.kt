@@ -43,4 +43,27 @@ class MigrationsTest {
 
         assertEquals(0, query("select count(*) from static_data_import") { rs -> rs.next(); rs.getInt(1) })
     }
+
+    // Regression guard: stockpiles existed per item before they could have a station; the widened key must keep them.
+    @Test
+    fun `existing stockpiles become anywhere stockpiles and the same item can then be kept at a station too`() {
+        Flyway.configure().dataSource(dataSource).locations(Migrations.DEFAULT_LOCATION).target("12").load().migrate()
+        dataSource.connection.use { c ->
+            c.createStatement().executeUpdate("insert into stockpiles (type_id, name, required) values (12820, 'Scorch L', 10)")
+        }
+
+        Migrations.migrate(dataSource)
+        dataSource.connection.use { c ->
+            c.createStatement().executeUpdate(
+                "insert into stockpiles (type_id, station_id, station_name, name, required) values (12820, 60000001, 'Jita IV', 'Scorch L', 5)",
+            )
+        }
+
+        assertEquals(
+            listOf("0:null", "60000001:Jita IV"),
+            query("select station_id, station_name from stockpiles order by station_id") { rs ->
+                generateSequence { if (rs.next()) "${rs.getLong(1)}:${rs.getString(2)}" else null }.toList()
+            },
+        )
+    }
 }
