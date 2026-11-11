@@ -31,14 +31,14 @@ class PlanProductionTest {
         val plan = plan(project("Frigates", rifter to 3))
 
         assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1, rifter + 1_000_000, 600))
-        assertThat(plan.shoppingList.associate { it.item to it.deficit })
+        assertThat(plan.prerequisites.associate { it.item to it.deficit })
             .containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 300L, pyerite to 60L))
     }
 
     private val component = 11000L
     private val merlin = 603L
 
-    private fun shopped(plan: Plan) = plan.shoppingList.associate { it.item to it.deficit }
+    private fun shopped(plan: Plan) = plan.prerequisites.associate { it.item to it.deficit }
 
     private fun chainRecipes() {
         recipe(rifter, 1, component to 5, pyerite to 20)
@@ -89,7 +89,7 @@ class PlanProductionTest {
         val plan = plan(project("Frigates", rifter to 3), stock = mapOf(rifter to 3L))
 
         assertThat(plan.jobs).isEmpty()
-        assertThat(plan.shoppingList).isEmpty()
+        assertThat(plan.prerequisites).isEmpty()
         assertThat(plan.demands.single().deficit).isZero()
     }
 
@@ -212,19 +212,19 @@ class PlanProductionTest {
         val belowPreferred = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 150L))
         val atPreferred = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 300L))
 
-        val demand = belowPreferred.shoppingList.single()
+        val demand = belowPreferred.prerequisites.single()
         assertThat(demand.deficit).isZero()
         assertThat(demand.deficitToPreferred).isEqualTo(150)
         assertThat(demand.status).isEqualTo(StockpileStatus.BelowPreferred)
-        assertThat(atPreferred.shoppingList).isEmpty()
+        assertThat(atPreferred.prerequisites).isEmpty()
     }
 
     @Test
     fun `below the required level is reported as such, ahead of preferred`() {
         val plan = plan(goal(tritanium, required = 100, preferred = 300), stock = mapOf(tritanium to 40L))
 
-        assertThat(plan.shoppingList.single().status).isEqualTo(StockpileStatus.BelowRequired)
-        assertThat(plan.shoppingList.single().deficitToPreferred).isEqualTo(260)
+        assertThat(plan.prerequisites.single().status).isEqualTo(StockpileStatus.BelowRequired)
+        assertThat(plan.prerequisites.single().deficitToPreferred).isEqualTo(260)
     }
 
     @Test
@@ -248,7 +248,7 @@ class PlanProductionTest {
         assertThat(demand.required).isEqualTo(3_500)
         assertThat(demand.preferred).isEqualTo(4_500)
         assertThat(demand.status).isEqualTo(StockpileStatus.BelowPreferred)
-        assertThat(plan.shoppingList.map { it.item }).containsExactly(tritanium)
+        assertThat(plan.prerequisites.map { it.item }).containsExactly(tritanium)
     }
 
     @Test

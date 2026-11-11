@@ -43,7 +43,7 @@ class PlanProjectTest {
         val result = planProject(ProjectId.AmarrShuttles, listOf(alice, bob))
 
         assertThat(result.plan.jobs).containsExactly(PlannedJob(shuttle, 1_000, setOf("1000 Amarr Shuttles"), 1, 11135, 6000))
-        val shopping = result.plan.shoppingList.single()
+        val shopping = result.plan.prerequisites.single()
         assertThat(shopping.item).isEqualTo(tritanium)
         assertThat(shopping.required).isEqualTo(2_778_000)
         assertThat(shopping.onHand).isEqualTo(1_000)
@@ -58,6 +58,6 @@ class PlanProjectTest {
         val result = planProject(ProjectId.AmarrShuttles, listOf(alice))
 
         assertThat(result.failures.single().message).isEqualTo("ESI down")
-        assertThat(result.plan.shoppingList.single().onHand).isZero()
+        assertThat(result.plan.prerequisites.single().onHand).isZero()
     }
 }

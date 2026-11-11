@@ -58,8 +58,11 @@ data class Plan(
             PlanPhase(number, jobs.filter { it.phase == number }, products.toSet())
         }
 
-    /** Items no job produces and whose stock is below the level the owner wants: what to buy or otherwise obtain. */
-    val shoppingList: List<ItemDemand>
+    /**
+     * Items no job of the plan produces and whose stock is below the level the owner wants. Whether each is bought, mined or
+     * built elsewhere is the owner's call, hence "prerequisites", not a shopping list.
+     */
+    val prerequisites: List<ItemDemand>
         get() {
             val built = jobs.mapTo(mutableSetOf(), PlannedJob::product)
             return demands.filter { it.item !in built && it.deficitToPreferred > 0 }

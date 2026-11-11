@@ -109,7 +109,7 @@ class ProjectsViewModel(
                                 ready = done.map { row -> row.toLine(now) },
                             )
                         },
-                        shopping = result.plan.shoppingList.map(::shoppingLine),
+                        shopping = result.plan.prerequisites.map(::shoppingLine),
                         failures = result.failures,
                         hullJobs = hullRows.map { row -> row.toLine(now) },
                         hullJobsSummary = summary(hullRows),

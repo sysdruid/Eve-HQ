@@ -2,7 +2,7 @@ package eve.hq.core.production
 
 /**
  * A level of [item] wanted on hand at cycle start, and why. [required] is the hard need and sizes jobs; [preferred]
- * is the level at which the owner can relax about an item they obtain elsewhere, and only affects the shopping list.
+ * is the level at which the owner can relax about an item they obtain elsewhere, and only affects the prerequisites.
  */
 data class Requirement(val item: TypeId, val required: Long, val because: String, val preferred: Long? = null) {
     init {

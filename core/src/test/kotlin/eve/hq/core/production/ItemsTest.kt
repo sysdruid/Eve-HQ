@@ -45,7 +45,7 @@ class ItemsTest {
         val plan = PlanProduction({ recipes[it] })(listOf(project))
 
         assertThat(plan.jobs.map { it.product }).containsExactlyInAnyOrder(3L, 1L)
-        assertThat(plan.shoppingList.associate { it.item to it.deficit })
+        assertThat(plan.prerequisites.associate { it.item to it.deficit })
             .containsExactlyInAnyOrderEntriesOf(mapOf(2L to 8L, 4L to 300L))
     }
 

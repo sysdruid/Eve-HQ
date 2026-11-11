@@ -77,7 +77,7 @@ contribution. Example, Tritanium with 1,400 on hand: manual 2,000 + project A 1,
 deficit 2,100. The UI shows the contributions per item, so the real, aggregated demand is visible.
 
 **Preferred is for what the owner obtains elsewhere** (bought, mined, salvaged, harvested). Jobs are sized to **required**
-only. Preferred adds up like required, but it only keeps an item that no job produces on the shopping list: below
+only. Preferred adds up like required, but it only keeps an item that no job produces on the prerequisites list: below
 required it is urgent, below preferred the owner keeps gathering, at preferred they can relax. A goal or a manual stockpile
 may state a preferred level; for derived demand on such an item a coefficient (`required x (1 + coefficient)`, 0 by
 default, optionally plus a flat buffer) can supply it. The coefficient is not implemented yet.
@@ -86,7 +86,7 @@ default, optionally plus a flat buffer) can supply it. The coefficient is not im
 Planning therefore sums the demands of all active projects per item first. An item is built if any project builds it; a
 project that stops at it still adds to its demand, and the jobs are sized to the total deficit.
 
-**The shopping list is a view,** not a separate stockpile: the items no job produces (those without a recipe, and the stop
+**The prerequisites are a view,** not a separate stockpile (the owner decides whether each is bought, mined or built elsewhere): the items no job produces (those without a recipe, and the stop
 items of any phase) with a deficit. That is the input of the earliest phase plus the stop items of later ones.
 
 - A **next-cycle estimate** shows what the goals will consume next cycle assuming intermediates start empty, minus what
@@ -144,7 +144,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 
 - The plan is generated at cycle start and then **frozen**; only job statuses change. Anything bought mid-cycle counts at the next cycle start.
 - Output: a to-do grouped by character, structure and blueprint, with runs and a copyable blueprint name;
-  a shopping list in EVE multibuy paste format.
+  the prerequisites grouped by item group, each group (and all) exportable in EVE multibuy paste format.
 - Jobs that appear in ESI tick themselves off.
 
 ## Deferred, deliberately
@@ -168,11 +168,11 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
    (race, tech level; group is already imported), invention and copying data when needed.
 2. Done: manual stockpiles (levels, status, optional station, tab), and `AssetService` for pooled assets.
 3. Projects and the engine. Done: `Project` with requirements and a build rule, summing demand per item and netting stock
-   once, contributions, the shopping list as a view, phases as depth, recipe and item adapters over the SDE (published
+   once, contributions, the prerequisites as a view, phases as depth, recipe and item adapters over the SDE (published
    blueprints only), a Projects tab with a project picker, two code-defined projects (1000 Amarr Shuttles; the inputs of five hundred
    Anathema jobs, built from the reusable `inputsOfJobs` goal: components, composites and intermediates are built in phases,
    everything else is bought) and the Anathema build rule written from the real groups in its tree. Next: the aggregated
-   shopping list over all projects, copy buttons and the per-item contributions on click, then more projects.
+   prerequisites list over all projects, copy buttons and the per-item contributions on click, then more projects.
 3b. Readiness goals. Done: explicit hull list, runs that fit the cycle, max over members per material x speed x jobs, direct
    inputs as requirements, and job splitting by cycle length (the Medium T2 hulls project, configured in `Projects.kt`).
    To do: fixed-run copies (T3), selector filters after the type-attribute import, slot and blueprint max-run limits.
