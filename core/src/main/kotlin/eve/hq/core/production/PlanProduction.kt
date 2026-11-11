@@ -45,7 +45,14 @@ class PlanProduction(private val recipes: RecipeBook) {
             if (recipe == null || expanders.isEmpty() || demand.deficit == 0L) continue
             val runs = (demand.deficit + recipe.perRun - 1) / recipe.perRun
             val phase = depth.getValue(item)
-            jobs += PlannedJob(item, runs, expanders.mapTo(linkedSetOf(), Project::name), phase, recipe.blueprint, recipe.secondsPerRun)
+            val cycle = expanders.mapNotNull(Project::cycle).minByOrNull { it.length }
+            val projectNames = expanders.mapTo(linkedSetOf(), Project::name)
+            // A job may not run longer than the cycle, so it is split into jobs that each fit, the remainder last.
+            val perJob = cycle?.maxRunsPerJob(recipe.secondsPerRun) ?: runs
+            val seconds = cycle?.effectiveSecondsPerRun(recipe.secondsPerRun) ?: recipe.secondsPerRun
+            for (chunk in generateSequence(runs) { it - perJob }.takeWhile { it > 0 }.map { minOf(it, perJob) }) {
+                jobs += PlannedJob(item, chunk, projectNames, phase, recipe.blueprint, seconds)
+            }
             recipe.materials.forEach { (material, perRun) ->
                 add(material, Jobs(item), perRun * runs)
                 reachedBy.getOrPut(material) { linkedSetOf() } += expanders

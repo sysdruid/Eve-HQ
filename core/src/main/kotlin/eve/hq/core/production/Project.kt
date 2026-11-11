@@ -22,12 +22,16 @@ interface Project {
     fun builds(item: TypeId): Boolean
 
     fun requirements(): List<Requirement>
+
+    /** The cycle this project plans in; its jobs are split so none runs longer than the cycle. Null: no limit. */
+    val cycle: CycleSettings? get() = null
 }
 
 /** The simplest project: a fixed list of requirements. */
 class FixedRequirementsProject(
     override val name: String,
     private val required: List<Requirement>,
+    override val cycle: CycleSettings? = null,
     private val buildRule: (TypeId) -> Boolean = { true },
 ) : Project {
     override fun builds(item: TypeId) = buildRule(item)

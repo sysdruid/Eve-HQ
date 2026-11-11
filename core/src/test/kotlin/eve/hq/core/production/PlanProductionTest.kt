@@ -300,4 +300,60 @@ class PlanProductionTest {
 
         assertThat(plan.jobs.single { it.product == component }.phase).isEqualTo(2)
     }
+
+    private fun cycleProject(name: String, cycle: CycleSettings, vararg required: Pair<TypeId, Long>) =
+        FixedRequirementsProject(name, required.map { (item, quantity) -> Requirement(item, quantity, "test") }, cycle)
+
+    private val twoWeeks = java.time.Duration.ofDays(14)
+
+    @Test
+    fun `a job that fits the cycle stays one job`() {
+        recipe(rifter, 1, tritanium to 100)
+
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks), rifter to 5))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(5L)
+    }
+
+    @Test
+    fun `a job that would outlast the cycle is split into jobs that each fit, the rest in the last`() {
+        // 100,000 s a run: 12 runs fit in 14 days (1,209,600 s). 30 runs would take ~35 days.
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
+
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks), rifter to 30))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(12L, 12L, 6L)
+        assertThat(plan.jobs.map { it.phase }.distinct()).containsExactly(1)
+        assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 3_000L)) // demand is unchanged by splitting
+    }
+
+    @Test
+    fun `speed lets a job hold more runs and reports the time a run really takes`() {
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
+
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks, speed = 2.0), rifter to 30))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(24L, 6L)
+        assertThat(plan.jobs.map { it.secondsPerRun }.distinct()).containsExactly(50_000)
+    }
+
+    @Test
+    fun `a single run longer than the cycle cannot be split further`() {
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 2_000_000)
+
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks), rifter to 3))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(1L, 1L, 1L)
+    }
+
+    @Test
+    fun `a project without a cycle is not split, and the tightest cycle of the building projects applies`() {
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
+
+        val unlimited = plan(project("Free", rifter to 30))
+        val mixed = plan(project("Free", rifter to 20), cycleProject("Cycled", CycleSettings(twoWeeks), rifter to 10))
+
+        assertThat(unlimited.jobs.map { it.runs }).containsExactly(30L)
+        assertThat(mixed.jobs.map { it.runs }).containsExactly(12L, 12L, 6L)
+    }
 }
