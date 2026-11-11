@@ -24,7 +24,13 @@ class PlanProjectTest {
     }
     private val holdings = mutableMapOf<Long, Result<List<AssetItem>>>()
     private val service = AssetService(AssetSource { holdings.getValue(it.id).getOrThrow() }, Clock.systemUTC())
-    private val planProject = PlanProject(Projects(Items(catalog), recipes), recipes, service)
+    private val planProject = PlanProject(
+        Projects(Items(catalog), recipes),
+        recipes,
+        service,
+        eve.hq.core.industry.ListJobs({ emptyList() }, Clock.systemUTC()),
+        Clock.systemUTC(),
+    )
 
     private fun tritanium(itemId: Long, quantity: Int) =
         AssetItem(itemId, AssetType(tritanium, "Tritanium"), null, quantity, AssetLocation(60000001, "Jita IV"))

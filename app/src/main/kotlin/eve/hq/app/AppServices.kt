@@ -11,7 +11,6 @@ import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.ListBlueprints
 import eve.hq.core.production.Items
-import eve.hq.core.production.ListProjectJobs
 import eve.hq.core.production.ListStockpiles
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.Projects
@@ -139,8 +138,7 @@ object AppServices {
             val definitions = Projects(Items(staticItems), recipeBook)
             ProjectsViewModel(
                 listCharacters,
-                PlanProject(definitions, recipeBook, assetService.value),
-                ListProjectJobs(definitions, listJobs.value),
+                PlanProject(definitions, recipeBook, assetService.value, listJobs.value, clock),
                 staticItems,
                 clock,
                 scope,

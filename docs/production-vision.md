@@ -174,7 +174,9 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
    inputs as requirements, and job splitting by cycle length (the Medium T2 hulls project, configured in `Projects.kt`).
    To do: fixed-run copies (T3), selector filters after the type-attribute import, slot and blueprint max-run limits.
 4. Done: phases as layers numbered from the most upstream, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
-5. Stock sources beyond assets: unclaimed and running job output, BPC runs.
+5. Stock sources beyond assets. Done: the output of running and finished-but-undelivered manufacturing and reaction jobs counts as
+   stock when it lands within the project's usable cycle (`runs x output per run`, all running jobs for a project without a
+   cycle). To do: BPC runs.
 6. Tick-off from the Jobs data. Started: a project declares the items it exists to produce (the hulls) and its tab lists the
    running ESI jobs making them, with a summary ("Legion 8, Tengu 8 in progress"). The hull jobs are informational and never change the plan. To do: match running jobs of the
    upstream phases to the planned jobs, and count their output finishing within the cycle as stock.

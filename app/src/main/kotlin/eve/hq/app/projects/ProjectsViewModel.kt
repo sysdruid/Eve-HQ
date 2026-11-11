@@ -7,7 +7,6 @@ import eve.hq.app.jobs.toLine
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
 import eve.hq.core.production.ItemCatalog
-import eve.hq.core.production.ListProjectJobs
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.ProjectId
 import eve.hq.core.production.StockpileStatus
@@ -57,7 +56,6 @@ private val log = Logger.getLogger(ProjectsViewModel::class.java.name)
 class ProjectsViewModel(
     private val listCharacters: ListCharacters,
     private val planProject: PlanProject,
-    private val listProjectJobs: ListProjectJobs,
     private val catalog: ItemCatalog,
     private val clock: Clock,
     private val scope: CoroutineScope,
@@ -87,8 +85,8 @@ class ProjectsViewModel(
             try {
                 val characters = withContext(io) { listCharacters() }
                 val result = withContext(io) { planProject(project, characters, refresh = fetch) }
-                val running = withContext(io) { listProjectJobs(project, characters) }
                 val now = clock.instant()
+                val hullRows = result.running.rows.filter { it.productId in result.endProducts }
                 _state.update {
                     it.copy(
                         loading = false,
@@ -99,9 +97,9 @@ class ProjectsViewModel(
                         },
                         shopping = result.plan.shoppingList.map(::shoppingLine),
                         failures = result.failures,
-                        hullJobs = running.rows.map { row -> row.toLine(now) },
-                        hullJobsSummary = summary(running.rows),
-                        jobFailures = running.failures,
+                        hullJobs = hullRows.map { row -> row.toLine(now) },
+                        hullJobsSummary = summary(hullRows),
+                        jobFailures = result.jobFailures,
                     )
                 }
             } catch (e: CancellationException) {

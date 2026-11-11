@@ -46,6 +46,10 @@
   next to the plan, reusing the Jobs tab's line and progress formatting (extracted, not copied). My first reading of the request
   ("the jobs that build the hulls") was the jobs still to be started; the owner meant the ones already running. Asking what the
   numbers should be used for, not just how to display them, would have saved a round trip.
+- Running jobs now count as stock: the plan asks for less when components are already being built. The owner's correction
+  shaped it: running *hull* jobs must not reduce the requirement (readiness is "able to start N jobs", and starting them spends the
+  materials), only upstream output that will land in the hangars does. The plan loads the jobs once and hands them to the tab, which
+  made a separate project-jobs use case redundant.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

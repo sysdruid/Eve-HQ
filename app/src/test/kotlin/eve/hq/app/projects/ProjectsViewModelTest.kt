@@ -15,7 +15,6 @@ import eve.hq.core.industry.JobSource
 import eve.hq.core.industry.JobStatus
 import eve.hq.core.industry.ListJobs
 import eve.hq.core.production.ItemCatalog
-import eve.hq.core.production.ListProjectJobs
 import eve.hq.core.production.Items
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.ProjectId
@@ -79,8 +78,7 @@ class ProjectsViewModelTest {
         val projects = Projects(Items(catalog), recipes)
         return ProjectsViewModel(
             ListCharacters(system.repository),
-            PlanProject(projects, recipes, service),
-            ListProjectJobs(projects, ListJobs(jobSource, clock)),
+            PlanProject(projects, recipes, service, ListJobs(jobSource, clock), clock),
             catalog,
             clock,
             scope,
