@@ -3,6 +3,7 @@ package eve.hq.data
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -41,6 +42,8 @@ class StaticDataImporter(private val dataSource: DataSource) {
             dataSource.connection.use { connection ->
                 replaceData(connection) {
                     connection.createStatement().use { statement ->
+                        statement.executeUpdate("delete from type_time_bonuses")
+                        statement.executeUpdate("delete from blueprint_skills")
                         statement.executeUpdate("delete from blueprint_materials")
                         statement.executeUpdate("delete from blueprint_products")
                         statement.executeUpdate("delete from blueprint_activities")
@@ -53,6 +56,7 @@ class StaticDataImporter(private val dataSource: DataSource) {
                     importGroups(zip, entries.getValue(GROUPS), connection)
                     importTypes(zip, entries.getValue(TYPES), connection)
                     importBlueprints(zip, entries.getValue(BLUEPRINTS), connection)
+                    importTimeBonuses(zip, entries.getValue(TYPE_DOGMA), connection)
                     replaceValidators(connection, source, validators)
                 }
             }
@@ -126,45 +130,76 @@ class StaticDataImporter(private val dataSource: DataSource) {
     }
 
     private fun importBlueprints(zip: ZipFile, entry: ZipEntry, connection: Connection) {
-        connection.prepareStatement("insert into blueprints (type_id, max_production_limit) values (?, ?)").use { blueprints ->
-            connection.prepareStatement(
-                "insert into blueprint_activities (blueprint_type_id, activity, time_seconds) values (?, ?, ?)",
-            ).use { activities ->
-                connection.prepareStatement(
-                    "insert into blueprint_materials (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
-                ).use { materials ->
-                    connection.prepareStatement(
-                        "insert into blueprint_products (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
-                    ).use { products ->
-                        // Parents are flushed before children so the foreign keys hold at every batch.
-                        val inserts = listOf(blueprints, activities, materials, products).map(::BatchedInsert)
-                        val (blueprintInsert, activityInsert, materialInsert, productInsert) = inserts
-                        forEachRecord(zip, entry) { record, line ->
-                            val blueprintId = record.requiredLong("blueprintTypeID", BLUEPRINTS, line)
-                            blueprintInsert.add {
-                                it.setLong(1, blueprintId)
-                                it.setInt(2, record.requiredLong("maxProductionLimit", BLUEPRINTS, line).toInt())
-                            }
-                            RECIPE_ACTIVITIES.forEach { activity ->
-                                val recipe = record["activities"]?.jsonObject?.get(activity)?.jsonObject ?: return@forEach
-                                activityInsert.add {
-                                    it.setLong(1, blueprintId)
-                                    it.setString(2, activity)
-                                    it.setInt(3, recipe.requiredLong("time", BLUEPRINTS, line).toInt())
-                                }
-                                recipe.quantities("materials", BLUEPRINTS, line).forEach { (typeId, quantity) ->
-                                    materialInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
-                                }
-                                recipe.quantities("products", BLUEPRINTS, line).forEach { (typeId, quantity) ->
-                                    productInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
-                                }
-                            }
-                            if (inserts.any(BatchedInsert::isFull)) inserts.forEach(BatchedInsert::flush)
-                        }
-                        inserts.forEach(BatchedInsert::flush)
+        connection.prepareAll(
+            "insert into blueprints (type_id, max_production_limit) values (?, ?)",
+            "insert into blueprint_activities (blueprint_type_id, activity, time_seconds) values (?, ?, ?)",
+            "insert into blueprint_materials (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
+            "insert into blueprint_products (blueprint_type_id, activity, type_id, quantity) values (?, ?, ?, ?)",
+            "insert into blueprint_skills (blueprint_type_id, activity, skill_type_id, level) values (?, ?, ?, ?)",
+        ) { statements ->
+            // Parents are flushed before children so the foreign keys hold at every batch.
+            val inserts = statements.map(::BatchedInsert)
+            val (blueprintInsert, activityInsert, materialInsert, productInsert, skillInsert) = inserts
+            forEachRecord(zip, entry) { record, line ->
+                val blueprintId = record.requiredLong("blueprintTypeID", BLUEPRINTS, line)
+                blueprintInsert.add {
+                    it.setLong(1, blueprintId)
+                    it.setInt(2, record.requiredLong("maxProductionLimit", BLUEPRINTS, line).toInt())
+                }
+                RECIPE_ACTIVITIES.forEach { activity ->
+                    val recipe = record["activities"]?.jsonObject?.get(activity)?.jsonObject ?: return@forEach
+                    activityInsert.add {
+                        it.setLong(1, blueprintId)
+                        it.setString(2, activity)
+                        it.setInt(3, recipe.requiredLong("time", BLUEPRINTS, line).toInt())
+                    }
+                    recipe.quantities("materials", BLUEPRINTS, line).forEach { (typeId, quantity) ->
+                        materialInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
+                    }
+                    recipe.quantities("products", BLUEPRINTS, line).forEach { (typeId, quantity) ->
+                        productInsert.add { it.bindRecipeLine(blueprintId, activity, typeId, quantity) }
+                    }
+                    recipe.skills(BLUEPRINTS, line).forEach { (skillId, level) ->
+                        skillInsert.add { it.bindRecipeLine(blueprintId, activity, skillId, level) }
                     }
                 }
+                if (inserts.any(BatchedInsert::isFull)) inserts.forEach(BatchedInsert::flush)
             }
+            inserts.forEach(BatchedInsert::flush)
+        }
+    }
+
+    private fun <T> Connection.prepareAll(vararg sql: String, block: (List<PreparedStatement>) -> T): T {
+        val statements = sql.map(::prepareStatement)
+        try {
+            return block(statements)
+        } finally {
+            statements.forEach(PreparedStatement::close)
+        }
+    }
+
+    /** Only the attributes that shorten jobs are kept: the dogma file holds every attribute of every type. */
+    private fun importTimeBonuses(zip: ZipFile, entry: ZipEntry, connection: Connection) {
+        connection.prepareStatement("insert into type_time_bonuses (type_id, attribute_id, amount) values (?, ?, ?)").use { statement ->
+            val insert = BatchedInsert(statement)
+            forEachRecord(zip, entry) { record, line ->
+                val typeId = record.requiredLong("_key", TYPE_DOGMA, line)
+                record["dogmaAttributes"]?.jsonArray.orEmpty().forEach { item ->
+                    val attribute = item.jsonObject
+                    val attributeId = attribute.requiredLong("attributeID", TYPE_DOGMA, line).toInt()
+                    if (attributeId in TIME_BONUS_ATTRIBUTES) {
+                        val amount = attribute["value"]?.jsonPrimitive?.doubleOrNull
+                            ?: throw IllegalArgumentException("Missing or invalid value in $TYPE_DOGMA at line $line")
+                        insert.add {
+                            it.setLong(1, typeId)
+                            it.setInt(2, attributeId)
+                            it.setDouble(3, amount)
+                        }
+                    }
+                }
+                if (insert.isFull) insert.flush()
+            }
+            insert.flush()
         }
     }
 
@@ -174,6 +209,12 @@ class StaticDataImporter(private val dataSource: DataSource) {
         setLong(3, typeId)
         setInt(4, quantity)
     }
+
+    private fun JsonObject.skills(entry: String, line: Int): List<Pair<Long, Int>> =
+        get("skills")?.jsonArray.orEmpty().map { item ->
+            val skill = item.jsonObject
+            skill.requiredLong("typeID", entry, line) to skill.requiredLong("level", entry, line).toInt()
+        }
 
     private fun JsonObject.quantities(field: String, entry: String, line: Int): List<Pair<Long, Int>> =
         get(field)?.jsonArray.orEmpty().map { item ->
@@ -249,8 +290,15 @@ class StaticDataImporter(private val dataSource: DataSource) {
         private const val GROUPS = "groups.jsonl"
         private const val TYPES = "types.jsonl"
         private const val BLUEPRINTS = "blueprints.jsonl"
+        private const val TYPE_DOGMA = "typeDogma.jsonl"
         private const val BATCH_SIZE = 1000
         private val RECIPE_ACTIVITIES = listOf("manufacturing", "reaction")
-        private val REQUIRED_ENTRIES = listOf(CATEGORIES, GROUPS, TYPES, BLUEPRINTS)
+        private val REQUIRED_ENTRIES = listOf(CATEGORIES, GROUPS, TYPES, BLUEPRINTS, TYPE_DOGMA)
+
+        // The dogma attributes that shorten a job: 440 manufacturingTimeBonus (Industry, industry implants),
+        // 1961 advancedIndustrySkillIndustryJobTimeBonus (Advanced Industry), 1982 manufactureTimePerLevel (the engineering
+        // skills), 2660 reactionTimeBonus (Reactions), 2602 strEngTimeBonus (Raitaru, Azbel, Sotiyo) and
+        // 2721 strReactionTimeMultiplier (Tatara).
+        private val TIME_BONUS_ATTRIBUTES = setOf(440, 1961, 1982, 2660, 2602, 2721)
     }
 }

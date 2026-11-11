@@ -174,6 +174,7 @@ class StaticDataImportCommandTest {
             zip.addJsonLines("groups.jsonl", """{"_key":18,"categoryID":6,"name":{"en":"Mineral"}}""")
             zip.addJsonLines("types.jsonl", typeRecord)
             zip.addJsonLines("blueprints.jsonl", "")
+            zip.addJsonLines("typeDogma.jsonl", "")
         }
     }.toByteArray()
 

@@ -151,7 +151,11 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 
 - **Multi-cycle jobs** (run several cycles' worth when a job takes a fraction of the cycle): model the level as min/max
   (trigger below one cycle of consumption, refill to N cycles). N is 1 for now.
-- **Exact job time and slot checks:** job time depends on TE, skills and structure bonus. The manual multiplier per
+- **Exact job time and slot checks:** job time is `base x (1 - blueprint TE) x Industry (4%/level) x Advanced Industry (3%/level) x
+  the engineering skills the blueprint requires (1%/level each) x implants x the structure's multiplier` (Raitaru 0.85, Azbel
+  0.80, Sotiyo 0.70; reactions use Reactions 4%/level and the Tatara's 0.75). Every number comes from the SDE (imported); only the
+  character's skill levels and implants (ESI) and TE are per owner. Rigs are not modelled. Verified against a real job to the minute.
+  Old note: job time depends on TE, skills and structure bonus. The manual multiplier per
   structure and activity (for example 0.9) is used first, with an optional max runs per job; later read blueprints
   (TE) and skills from ESI and check against each character's slots. The readiness scale is a number the owner tunes first, and
   could be derived from free slots later.

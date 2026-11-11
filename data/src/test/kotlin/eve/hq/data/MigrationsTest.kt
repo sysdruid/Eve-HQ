@@ -82,4 +82,22 @@ class MigrationsTest {
 
         assertEquals(0, query("select count(*) from static_data_import") { rs -> rs.next(); rs.getInt(1) })
     }
+
+    // Regression guard, as for the recipe tables: skills and time bonuses arrive after static data was already imported, and
+    // the saved ETag would make every later import say "already up to date" and leave them empty.
+    @Test
+    fun `migrating past the time bonus tables forgets saved download validators so they get imported`() {
+        Flyway.configure().dataSource(dataSource).locations(Migrations.DEFAULT_LOCATION).target("14").load().migrate()
+        dataSource.connection.use { c ->
+            c.createStatement().executeUpdate(
+                "insert into static_data_import (source, etag, last_modified) values ('https://sde.test/latest.zip', '\"v3\"', 'Wed, 11 Nov 2026 11:11:00 GMT')",
+            )
+        }
+
+        Migrations.migrate(dataSource)
+
+        assertEquals(0, query("select count(*) from static_data_import") { rs -> rs.next(); rs.getInt(1) })
+        assertEquals(0, query("select count(*) from blueprint_skills") { rs -> rs.next(); rs.getInt(1) })
+        assertEquals(0, query("select count(*) from type_time_bonuses") { rs -> rs.next(); rs.getInt(1) })
+    }
 }

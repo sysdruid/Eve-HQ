@@ -57,6 +57,11 @@
 - "Shopping list" was the wrong word: some of what a plan does not produce the owner builds elsewhere (T1 hulls), some is bought
   (moon materials). It became "prerequisites", grouped by item group, with an EVE multibuy text per group, so the owner decides
   per group. The item group already in the data matched the owner's own examples; the market-group tree would have needed a new import.
+- Job time: the planner's flat 1.4 "speed" was 40% off a real job (13d 11h against 8d 5h 19m in game). Chasing the gap with the
+  owner found each factor in turn (TE, Industry, Advanced Industry, a 2% implant, a Raitaru) and one unexplained 4%, which a
+  wrong guess (a second implant) did not survive: the SDE shows the blueprint's own required engineering skills give 1% a level
+  (Electronic Engineering IV for electronic components). Lesson: the data states the rule, so import the numbers instead of
+  recalling them. The formula is pinned by that real job; the importer now reads skills and time-bonus attributes.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

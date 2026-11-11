@@ -298,12 +298,14 @@ class StaticDataImporterTest {
         group: String,
         type: String,
         blueprint: String = "",
+        typeDogma: String = "",
     ): Path = archiveWithEntries(
         dir,
         "categories.jsonl" to category,
         "groups.jsonl" to group,
         "types.jsonl" to type,
         "blueprints.jsonl" to blueprint,
+        "typeDogma.jsonl" to typeDogma,
     )
 
     private fun archiveWithEntries(dir: Path, vararg entries: Pair<String, String>): Path {
@@ -343,6 +345,21 @@ class StaticDataImporterTest {
         time?.let { Recipe(it, quantities("blueprint_materials"), quantities("blueprint_products")) }
     }
 
+    private fun importedSkills(blueprintTypeId: Long, activity: String): Map<Long, Int> = dataSource.connection.use { connection ->
+        connection.prepareStatement("select skill_type_id, level from blueprint_skills where blueprint_type_id = ? and activity = ?").use { statement ->
+            statement.setLong(1, blueprintTypeId)
+            statement.setString(2, activity)
+            statement.executeQuery().use { result -> buildMap { while (result.next()) put(result.getLong(1), result.getInt(2)) } }
+        }
+    }
+
+    private fun importedTimeBonuses(typeId: Long): Map<Int, Double> = dataSource.connection.use { connection ->
+        connection.prepareStatement("select attribute_id, amount from type_time_bonuses where type_id = ?").use { statement ->
+            statement.setLong(1, typeId)
+            statement.executeQuery().use { result -> buildMap { while (result.next()) put(result.getInt(1), result.getDouble(2)) } }
+        }
+    }
+
     private fun importedMaxProductionLimit(typeId: Long): Int? = dataSource.connection.use { connection ->
         connection.prepareStatement("select max_production_limit from blueprints where type_id = ?").use { statement ->
             statement.setLong(1, typeId)
@@ -369,5 +386,108 @@ class StaticDataImporterTest {
         const val CATEGORY = """{"_key":6,"name":{"en":"Manufacture"},"published":true}"""
         const val GROUP = """{"_key":18,"categoryID":6,"name":{"en":"Mineral"},"published":true}"""
         const val RIFTER_BLUEPRINT_TYPE = """{"_key":681,"groupID":18,"name":{"en":"Rifter Blueprint"},"published":true}"""
+    }
+
+    @Test
+    fun `imports the skills a blueprint requires to manufacture or react, and ignores the skills of other activities`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE + "\n" + """{"_key":682,"groupID":18,"name":{"en":"Crystalline Carbonide Reaction Formula"},"published":true}""",
+                blueprint = """{"_key":681,"activities":{"invention":{"skills":[{"level":5,"typeID":11450}],"time":900},"manufacturing":{"materials":[{"quantity":86,"typeID":38}],"products":[{"quantity":1,"typeID":165}],"skills":[{"level":1,"typeID":3380},{"level":3,"typeID":11453}],"time":600}},"blueprintTypeID":681,"maxProductionLimit":300}""" +
+                    "\n" + """{"_key":682,"activities":{"reaction":{"materials":[{"quantity":100,"typeID":16633}],"products":[{"quantity":200,"typeID":16672}],"skills":[{"level":3,"typeID":45746}],"time":10800}},"blueprintTypeID":682,"maxProductionLimit":1}""",
+            ),
+        )
+
+        assertEquals(mapOf(3380L to 1, 11453L to 3), importedSkills(681, "manufacturing"))
+        assertEquals(mapOf(45746L to 3), importedSkills(682, "reaction"))
+        assertEquals(emptyMap(), importedSkills(681, "invention"))
+    }
+
+    @Test
+    fun `imports only the attributes that shorten jobs, from every type that has them`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+
+        StaticDataImporter(dataSource).importArchive(
+            archiveWithRecords(
+                dir,
+                CATEGORY,
+                GROUP,
+                RIFTER_BLUEPRINT_TYPE,
+                typeDogma = """{"_key":3380,"dogmaAttributes":[{"attributeID":275,"value":1.0},{"attributeID":440,"value":-4.0}],"dogmaEffects":[{"effectID":1}]}""" +
+                    "\n" + """{"_key":11453,"dogmaAttributes":[{"attributeID":1982,"value":-1.0},{"attributeID":182,"value":3402.0}]}""" +
+                    "\n" + """{"_key":35825,"dogmaAttributes":[{"attributeID":2339,"value":-25.0},{"attributeID":2602,"value":0.85}]}""" +
+                    "\n" + """{"_key":99,"dogmaAttributes":[{"attributeID":275,"value":1.0}]}""",
+            ),
+        )
+
+        assertEquals(mapOf(440 to -4.0), importedTimeBonuses(3380))
+        assertEquals(mapOf(1982 to -1.0), importedTimeBonuses(11453))
+        assertEquals(mapOf(2602 to 0.85), importedTimeBonuses(35825))
+        assertEquals(emptyMap(), importedTimeBonuses(99))
+    }
+
+    @Test
+    fun `a re-import replaces the previous skills and time bonuses`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        val blueprint = """{"_key":681,"activities":{"manufacturing":{"products":[{"quantity":1,"typeID":165}],"skills":[{"level":1,"typeID":3380}],"time":600}},"blueprintTypeID":681,"maxProductionLimit":300}"""
+        importer.importArchive(
+            archiveWithRecords(dir, CATEGORY, GROUP, RIFTER_BLUEPRINT_TYPE, blueprint, """{"_key":3380,"dogmaAttributes":[{"attributeID":440,"value":-4.0}]}"""),
+        )
+
+        importer.importArchive(
+            archiveWithRecords(
+                dir, CATEGORY, GROUP, RIFTER_BLUEPRINT_TYPE,
+                blueprint.replace("3380", "11453"),
+                """{"_key":11453,"dogmaAttributes":[{"attributeID":1982,"value":-1.0}]}""",
+            ),
+        )
+
+        assertEquals(mapOf(11453L to 1), importedSkills(681, "manufacturing"))
+        assertEquals(emptyMap(), importedTimeBonuses(3380))
+        assertEquals(mapOf(1982 to -1.0), importedTimeBonuses(11453))
+    }
+
+    @Test
+    fun `a malformed skill or attribute fails the import and keeps the old data`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        importer.importArchive(existingTypeArchive(dir))
+        val noLevel = archiveWithRecords(
+            dir, CATEGORY, GROUP, RIFTER_BLUEPRINT_TYPE,
+            """{"_key":681,"activities":{"manufacturing":{"products":[{"quantity":1,"typeID":165}],"skills":[{"typeID":3380}],"time":600}},"blueprintTypeID":681,"maxProductionLimit":300}""",
+        )
+        val noValue = archiveWithRecords(
+            dir, CATEGORY, GROUP, RIFTER_BLUEPRINT_TYPE,
+            typeDogma = """{"_key":3380,"dogmaAttributes":[{"attributeID":440}]}""",
+        )
+
+        assertFailsWith<IllegalArgumentException> { importer.importArchive(noLevel) }
+        assertFailsWith<IllegalArgumentException> { importer.importArchive(noValue) }
+
+        assertEquals("Tritanium" to true, importedType(34))
+    }
+
+    @Test
+    fun `an archive without the dogma entry is rejected and leaves existing rows untouched`(@TempDir dir: Path) {
+        Migrations.migrate(dataSource)
+        val importer = StaticDataImporter(dataSource)
+        importer.importArchive(existingTypeArchive(dir))
+        val withoutDogma = archiveWithEntries(
+            dir,
+            "categories.jsonl" to CATEGORY,
+            "groups.jsonl" to GROUP,
+            "types.jsonl" to RIFTER_BLUEPRINT_TYPE,
+            "blueprints.jsonl" to "",
+        )
+
+        assertFailsWith<IllegalArgumentException> { importer.importArchive(withoutDogma) }
+
+        assertEquals("Tritanium" to true, importedType(34))
     }
 }
