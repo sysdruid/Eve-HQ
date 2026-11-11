@@ -26,14 +26,15 @@ class RunTimeTest {
         assertThat(modifiers.seconds(10_000, 1)).isEqualTo(6_664) // 0.8 x 0.85 x 0.98
     }
 
-    // Reproduces the game: 21,772 runs of Photon Microprocessor (75 s base) by a character with Industry V, Advanced
-    // Industry V and two implants (2% and 4%) at a Raitaru (15%), using a 20% TE blueprint: 8d 5h 19m in game.
+    // Reproduces the game: 21,772 runs of Photon Microprocessor (75 s base) by a character with Industry V, Advanced Industry V
+    // and Electronic Engineering IV (the blueprint requires it; 1% a level), one 2% implant (Zainou 'Beancounter' BX-802),
+    // at a Raitaru (x0.85), using a 20% TE blueprint. The game shows 8d 5h 19m, and "-36%" for skills and implants.
     @Test
     fun `a real job from the game is reproduced to the minute`() {
         val modifiers = TimeModifiers(
             blueprintTe = 20,
-            skills = ManufacturingSkills.reductions(industry = 5, advancedIndustry = 5),
-            implants = listOf(0.02, 0.04),
+            skills = ManufacturingSkills.reductions(industry = 5, advancedIndustry = 5) + 0.04,
+            implants = listOf(0.02),
             structure = 0.15,
         )
 
@@ -41,6 +42,8 @@ class RunTimeTest {
 
         val inGame = Duration.ofDays(8).plusHours(5).plusMinutes(19).seconds
         assertThat(seconds).isBetween(inGame, inGame + 59) // the game shows whole minutes
+        // Skills and implants alone: the game rounds this to -36%.
+        assertThat(TimeModifiers(skills = modifiers.skills, implants = modifiers.implants).factor.toDouble()).isBetween(0.6395, 0.6400)
     }
 
     @Test
