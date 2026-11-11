@@ -28,10 +28,19 @@ data class ItemDemand(val item: TypeId, val contributions: List<Contribution>, v
         }
 }
 
-/** [projects] are the projects that expand [product]'s inputs. */
-data class PlannedJob(val product: TypeId, val runs: Long, val projects: Set<String>)
+/**
+ * [projects] are the projects that build [product]. [phase] is the product's depth from the goals, counted from 1:
+ * the goals' own jobs, then the jobs making their inputs, and so on. Phases are not an order to run in. All of them
+ * run in parallel within the cycle, each making the input the next phase consumes.
+ */
+data class PlannedJob(val product: TypeId, val runs: Long, val projects: Set<String>, val phase: Int)
+
+data class PlanPhase(val number: Int, val jobs: List<PlannedJob>)
 
 data class Plan(val demands: List<ItemDemand>, val jobs: List<PlannedJob>) {
+    val phases: List<PlanPhase>
+        get() = jobs.groupBy(PlannedJob::phase).toSortedMap().map { (number, inPhase) -> PlanPhase(number, inPhase) }
+
     /** Items no job produces and whose stock is below the level the owner wants: what to buy or otherwise obtain. */
     val shoppingList: List<ItemDemand>
         get() {

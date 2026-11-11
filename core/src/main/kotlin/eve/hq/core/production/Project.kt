@@ -12,14 +12,14 @@ data class Requirement(val item: TypeId, val required: Long, val because: String
 }
 
 /**
- * What a project needs and what it buys instead of building. How the requirements come about (a fixed list, a
+ * What a project needs and which items it builds rather than buys. How the requirements come about (a fixed list, a
  * readiness rule, ...) is the project's own business; the planner only sees the result.
  */
 interface Project {
     val name: String
 
-    /** Items this project never expands into their own inputs. */
-    val stopItems: Set<TypeId>
+    /** Whether the project builds [item] from its inputs; if not, the item is bought (or otherwise obtained). */
+    fun builds(item: TypeId): Boolean
 
     fun requirements(): List<Requirement>
 }
@@ -28,7 +28,9 @@ interface Project {
 class FixedRequirementsProject(
     override val name: String,
     private val required: List<Requirement>,
-    override val stopItems: Set<TypeId> = emptySet(),
+    private val buildRule: (TypeId) -> Boolean = { true },
 ) : Project {
+    override fun builds(item: TypeId) = buildRule(item)
+
     override fun requirements() = required
 }

@@ -33,9 +33,10 @@ Project/Phase/Job vocabulary of `lessons-from-v1.md` where they differ.
     hull of Amarr, ORE or Gallente origin). The hull jobs are not planned; the owner picks which hull to build at job
     start. The plan only guarantees the inputs exist.
 - **What is built and what is bought is part of each project's definition;** the tool assumes nothing about any specific item.
-  A project names its **stop items**: items it never expands into their own inputs (it buys or otherwise obtains them).
-  Anything else with a recipe is expanded. A project's need for a stop item still counts as demand on that item (see
-  Stockpiles).
+  A project answers `builds(item)`: items it does not build are bought or otherwise obtained, never expanded into their
+  own inputs. The answer is plain code, written with helpers such as `isGroup(item, "Composite")` and `isItem(item, name)`
+  combined with `&&`, `||` and `!`, so rules by group, by name or both need no extra machinery. An item that is not built
+  still counts as demand (see Stockpiles).
 - **BPC runs** are stock: the owner sets an expected level and the plan flags when it runs low. Invention is the
   same replenish logic, only not triggered every cycle.
 
@@ -47,9 +48,12 @@ and the set of active projects is fixed in code. How projects are created and ed
 - **Goals** (`ProjectGoal`): each goal states requirements, that is item levels (required, and optionally preferred) needed on hand at cycle start, and hides
   how it computed them. An output goal says "N of X"; a readiness goal (below) says "the direct inputs of any job in this
   selection". The planner never knows which kind it was given.
-- **Stop items:** per project, see above.
-- **Phases:** a project's production layers (reactions, components, hulls/modules), each mapping built items to a phase,
-  by item group as the owner does today. Phases do not affect the arithmetic; they group the job list.
+- **Build rule:** per project, see above.
+- **Phases** are the depth from the goals: the goals' own jobs, then the jobs making their inputs, and so on (v1 chained
+  `plan(...)` stages by hand the same way, sometimes filtering each stage by item group). An item needed at several
+  depths takes the deepest one, so its job sits after every job consuming it. **Phases run in parallel,** all inside the
+  cycle, each making the input the next consumes; a phase number is a grouping and never an order to run in. Grouping the
+  to-do by phase, then by item group, is computed from the plan and needs no configuration.
 - **Characters and stations** per phase: later. They matter for the to-do list and for where a phase's input stock should
   sit, not for the first calculation. Planning stays pooled across characters and stations.
 
@@ -152,7 +156,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
    project (fixed requirements) before any readiness rule.
 3b. Readiness goals: explicit hull list, per-job run counts from the speed multiplier, max over members x scale, direct
    inputs as requirements; fixed-run copies. Selector filters after the type-attribute import.
-4. Phases as grouping, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
+4. Done: phase as depth in the plan, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
 5. Stock sources beyond assets: unclaimed and running job output, BPC runs.
 6. Tick-off from the Jobs data.
 7. Exact job time from ESI, slot checks, job splitting, capacity warnings.

@@ -8,7 +8,7 @@ import eve.hq.core.production.ContributionSource.ProjectGoal
  * Plans the jobs and purchases that bring pooled stock up to the demand of all [projects] and [manual] stockpiles.
  *
  * Every demand on an item is added up first and stock is subtracted once, so two projects cannot claim the same
- * stock. An item is built when some project reaches it without stopping at it; a project that stops there still adds
+ * stock. An item is built when some project reaches it and builds it; a project that buys it still adds
  * its demand to the total the jobs are sized to. A manual stockpile only adds demand and never builds anything.
  */
 class PlanProduction(private val recipes: RecipeBook) {
@@ -19,6 +19,8 @@ class PlanProduction(private val recipes: RecipeBook) {
     ): Plan {
         val contributions = linkedMapOf<TypeId, MutableList<Contribution>>()
         val reachedBy = mutableMapOf<TypeId, MutableSet<Project>>()
+        // The deepest layer an item is needed at, so its job comes after every job that consumes it.
+        val depth = mutableMapOf<TypeId, Int>()
         fun add(item: TypeId, source: ContributionSource, required: Long, preferred: Long = required) {
             if (required > 0) contributions.getOrPut(item) { mutableListOf() } += Contribution(source, required, preferred)
         }
@@ -26,6 +28,7 @@ class PlanProduction(private val recipes: RecipeBook) {
             project.requirements().forEach { requirement ->
                 add(requirement.item, ProjectGoal(project.name, requirement.because), requirement.required, requirement.preferred ?: requirement.required)
                 reachedBy.getOrPut(requirement.item) { linkedSetOf() } += project
+                depth.merge(requirement.item, 1, ::maxOf)
             }
         }
         manual.forEach { add(it.item, ManualStockpile, it.required, it.preferred ?: it.required) }
@@ -37,22 +40,24 @@ class PlanProduction(private val recipes: RecipeBook) {
             val asked = contributions[item] ?: continue
             val demand = ItemDemand(item, asked.toList(), stock[item] ?: 0)
             demands += demand
-            val expanders = reachedBy[item].orEmpty().filter { item !in it.stopItems }
+            val expanders = reachedBy[item].orEmpty().filter { it.builds(item) }
             val recipe = recipes.forProduct(item)
             if (recipe == null || expanders.isEmpty() || demand.deficit == 0L) continue
             val runs = (demand.deficit + recipe.perRun - 1) / recipe.perRun
-            jobs += PlannedJob(item, runs, expanders.mapTo(linkedSetOf(), Project::name))
+            val phase = depth.getValue(item)
+            jobs += PlannedJob(item, runs, expanders.mapTo(linkedSetOf(), Project::name), phase)
             recipe.materials.forEach { (material, perRun) ->
                 add(material, Jobs(item), perRun * runs)
                 reachedBy.getOrPut(material) { linkedSetOf() } += expanders
+                depth.merge(material, phase + 1, ::maxOf)
             }
         }
         return Plan(demands, jobs)
     }
 
-    /** Whether any project could expand [item]; used only to order the walk, so it may over-approximate. */
+    /** Whether any project builds [item]; used only to order the walk, so it may include items nobody reaches. */
     private fun expandable(item: TypeId, projects: List<Project>) =
-        recipes.forProduct(item) != null && !(projects.isNotEmpty() && projects.all { item in it.stopItems })
+        recipes.forProduct(item) != null && projects.any { it.builds(item) }
 
     private fun parentsFirst(roots: Collection<TypeId>, projects: List<Project>): List<TypeId> {
         val finished = mutableListOf<TypeId>()

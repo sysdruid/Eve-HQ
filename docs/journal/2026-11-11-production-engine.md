@@ -20,6 +20,10 @@
   stockpiles) were each confirmed to fail the tests that should catch them.
 - The topological walk cannot know which project reaches an item before it has walked, so ordering uses a conservative
   "could any project expand this" test; only the real expansion decides jobs.
+- Reading the v1 notebooks settled two modelling questions: v1 stages were depth levels from the goal (optionally filtered
+  by item group), so a phase is just the depth in the plan, with the deepest depth winning, and the group filter was really
+  a build-or-buy rule. Stop items became a per-project `builds(item)` predicate written with plain booleans over
+  `isGroup`/`isItem`, instead of a combinator type. Phases run in parallel by design; the plan never implies an order.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

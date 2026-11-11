@@ -16,7 +16,7 @@ class PlanProductionTest {
     }
 
     private fun project(name: String, vararg required: Pair<TypeId, Long>, stop: Set<TypeId> = emptySet()) =
-        FixedRequirementsProject(name, required.map { (item, quantity) -> Requirement(item, quantity, "test") }, stop)
+        FixedRequirementsProject(name, required.map { (item, quantity) -> Requirement(item, quantity, "test") }) { it !in stop }
 
     private fun plan(
         vararg projects: Project,
@@ -30,7 +30,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 3))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates")))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1))
         assertThat(plan.shoppingList.associate { it.item to it.deficit })
             .containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 300L, pyerite to 60L))
     }
@@ -52,7 +52,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 10))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates")))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 3, setOf("Frigates"), 1))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 30L))
     }
 
@@ -99,7 +99,7 @@ class PlanProductionTest {
 
         val plan = plan(project("Frigates", rifter to 3), stock = mapOf(rifter to 1L))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Frigates")))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Frigates"), 1))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 200L))
     }
 
@@ -120,7 +120,7 @@ class PlanProductionTest {
         val plan = plan(project("Rifters", rifter to 1), project("Merlins", merlin to 1))
 
         assertThat(plan.jobs.filter { it.product == component })
-            .containsExactly(PlannedJob(component, 8, setOf("Rifters", "Merlins")))
+            .containsExactly(PlannedJob(component, 8, setOf("Rifters", "Merlins"), 2))
     }
 
     @Test
@@ -200,7 +200,7 @@ class PlanProductionTest {
         )
 
         assertThat(plan.jobs.single { it.product == component })
-            .isEqualTo(PlannedJob(component, 8, setOf("Merlins")))
+            .isEqualTo(PlannedJob(component, 8, setOf("Merlins"), 2))
         assertThat(shopped(plan)).containsExactlyInAnyOrderEntriesOf(mapOf(tritanium to 64L, pyerite to 20L))
     }
 
@@ -233,7 +233,7 @@ class PlanProductionTest {
 
         val plan = plan(goal(rifter, required = 2, preferred = 10))
 
-        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Goals")))
+        assertThat(plan.jobs).containsExactly(PlannedJob(rifter, 2, setOf("Goals"), 1))
         assertThat(shopped(plan)).containsExactlyEntriesOf(mapOf(tritanium to 200L))
     }
 
@@ -254,5 +254,50 @@ class PlanProductionTest {
     @Test
     fun `a preferred level below the required one is rejected`() {
         assertFailsWith<IllegalArgumentException> { Requirement(tritanium, 100, "test", preferred = 99) }
+    }
+
+    private val assembly = 12000L
+
+    @Test
+    fun `a job's phase is its depth from the goals`() {
+        chainRecipes()
+
+        val plan = plan(project("Frigates", rifter to 1))
+
+        assertThat(plan.jobs.associate { it.product to it.phase })
+            .containsExactlyInAnyOrderEntriesOf(mapOf(rifter to 1, component to 2))
+    }
+
+    @Test
+    fun `an item needed at several depths sits in the deepest phase, after everything that consumes it`() {
+        recipe(rifter, 1, component to 5, assembly to 1)
+        recipe(assembly, 1, component to 2)
+        recipe(component, 1, tritanium to 8)
+
+        val plan = plan(project("Frigates", rifter to 1))
+
+        assertThat(plan.jobs.associate { it.product to it.phase })
+            .containsExactlyInAnyOrderEntriesOf(mapOf(rifter to 1, assembly to 2, component to 3))
+        assertThat(plan.jobs.single { it.product == component }.runs).isEqualTo(7)
+    }
+
+    @Test
+    fun `phases group the jobs by depth, shallowest first`() {
+        chainRecipes()
+
+        val phases = plan(project("Frigates", rifter to 1), project("Merlins", merlin to 1)).phases
+
+        assertThat(phases.map { it.number }).containsExactly(1, 2)
+        assertThat(phases[0].jobs.map { it.product }).containsExactlyInAnyOrder(rifter, merlin)
+        assertThat(phases[1].jobs.map { it.product }).containsExactly(component)
+    }
+
+    @Test
+    fun `a goal that other goals also consume takes the deeper phase`() {
+        chainRecipes()
+
+        val plan = plan(project("Everything", rifter to 1, component to 3))
+
+        assertThat(plan.jobs.single { it.product == component }.phase).isEqualTo(2)
     }
 }
