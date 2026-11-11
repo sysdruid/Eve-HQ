@@ -67,7 +67,7 @@ class StockpilesViewModelTest {
         pending.complete(listOf(asset(1, 100, 1_210)))
         assertThat(viewModel.state.value.loading).isFalse()
         assertThat(viewModel.state.value.lines).containsExactly(
-            StockpileLine(100, "Multifrequency L  on hand 1,210  required 100  preferred 300", StockpileStatus.Ok),
+            StockpileLine(100, "Multifrequency L", "Multifrequency L  on hand 1,210  required 100  preferred 300", StockpileStatus.Ok),
         )
     }
 

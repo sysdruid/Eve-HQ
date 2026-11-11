@@ -26,6 +26,9 @@
   visible because logging had just been added; the stack trace named the table and the character. Fix: loads are
   serialised per character in the three refreshing sources, so the second caller finds a fresh cache.
   Still open: token refresh can race the same way across the three sources.
+- Follow-ups from first use: clicking a stockpile jumps to the Assets tab with the item name in the search box (the
+  existing text search already matches type names), and the per-character "inventory updated" lines became one line
+  with the oldest time, which is the useful answer to how stale the list can be.
 
 ### Article Hook
 - **Publication Takeaway:** Discussing the domain concept before coding removed a whole speculative module: the

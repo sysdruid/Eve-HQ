@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 
 data class AssetsUiState(
     val loading: Boolean = false,
@@ -25,7 +26,10 @@ data class AssetsUiState(
     val failures: List<AssetLoadFailure> = emptyList(),
     val snapshots: List<AssetSnapshotInfo> = emptyList(),
     val error: String? = null,
-)
+) {
+    /** The age of the stalest character's inventory: the honest answer to "how old can this list be?". */
+    val inventoryUpdatedAt: Instant? get() = snapshots.minOfOrNull(AssetSnapshotInfo::updatedAt)
+}
 
 private val log = Logger.getLogger(AssetsViewModel::class.java.name)
 

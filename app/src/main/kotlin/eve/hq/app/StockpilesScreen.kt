@@ -30,7 +30,7 @@ import eve.hq.app.stockpiles.StockpilesViewModel
 import eve.hq.core.production.StockpileStatus
 
 @Composable
-fun StockpilesScreen(viewModel: StockpilesViewModel) {
+fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> Unit) {
     val state by viewModel.state.collectAsState()
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -56,7 +56,8 @@ fun StockpilesScreen(viewModel: StockpilesViewModel) {
             items(state.lines) { line ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(statusLabel(line.status), color = statusColor(line.status), modifier = Modifier.padding(end = 4.dp))
-                    Text(line.text, modifier = Modifier.weight(1f))
+                    // Clicking the name jumps to the assets of this item, to see where it is scattered.
+                    Text(line.text, modifier = Modifier.weight(1f).clickable { onShowAssets(line.name) })
                     OutlinedButton(onClick = { viewModel.edit(line.item) }) { Text("Edit") }
                     OutlinedButton(onClick = { viewModel.remove(line.item) }) { Text("Remove") }
                 }

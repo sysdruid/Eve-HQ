@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-data class StockpileLine(val item: TypeId, val text: String, val status: StockpileStatus)
+data class StockpileLine(val item: TypeId, val name: String, val text: String, val status: StockpileStatus)
 
 data class StockpileForm(
     val item: ItemType? = null,
@@ -166,7 +166,7 @@ class StockpilesViewModel(
             pile.preferred?.let { "preferred ${count(it)}" },
             pile.overflow?.let { "overflow ${count(it)}" },
         )
-        return StockpileLine(pile.item, "${pile.name}  on hand ${count(row.onHand)}  ${levels.joinToString("  ")}", row.status)
+        return StockpileLine(pile.item, pile.name, "${pile.name}  on hand ${count(row.onHand)}  ${levels.joinToString("  ")}", row.status)
     }
 
     private fun count(value: Long) = "%,d".format(Locale.ROOT, value)

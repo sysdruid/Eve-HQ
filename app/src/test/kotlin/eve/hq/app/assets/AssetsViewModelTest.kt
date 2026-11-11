@@ -13,6 +13,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import java.time.Instant
+import eve.hq.core.asset.AssetSnapshotInfo
+import kotlin.test.assertNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -161,5 +163,19 @@ class AssetsViewModelTest {
 
         assertEquals(listOf("Tritanium"), viewModel.state.value.items.map { it.typeName })
         assertEquals("ESI unavailable", viewModel.state.value.failures.single().message)
+    }
+
+    @Test
+    fun `the inventory age is the oldest snapshot over all characters`() {
+        val older = Instant.parse("2026-11-11T10:00:00Z")
+        val state = AssetsUiState(
+            snapshots = listOf(
+                AssetSnapshotInfo(1, "Alice", older.plusSeconds(600)),
+                AssetSnapshotInfo(2, "Bob", older),
+            ),
+        )
+
+        assertEquals(older, state.inventoryUpdatedAt)
+        assertNull(AssetsUiState().inventoryUpdatedAt)
     }
 }

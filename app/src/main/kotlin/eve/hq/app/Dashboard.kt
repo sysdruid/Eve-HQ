@@ -31,7 +31,10 @@ fun Dashboard(viewModels: AppViewModels) {
                 1 -> AssetsScreen(viewModels.assets.value)
                 2 -> JobsScreen(viewModels.jobs.value)
                 3 -> BlueprintsScreen(viewModels.blueprints.value)
-                4 -> StockpilesScreen(viewModels.stockpiles.value)
+                4 -> StockpilesScreen(viewModels.stockpiles.value) { itemName ->
+                    viewModels.assets.value.setQuery(itemName)
+                    selectedTab = 1
+                }
             }
         }
     }

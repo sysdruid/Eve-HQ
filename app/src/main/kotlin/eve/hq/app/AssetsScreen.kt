@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eve.hq.app.assets.AssetsViewModel
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AssetsScreen(viewModel: AssetsViewModel) {
@@ -39,8 +41,8 @@ fun AssetsScreen(viewModel: AssetsViewModel) {
             Text("Loading assets…")
             LinearProgressIndicator(Modifier.fillMaxWidth())
         }
-        state.snapshots.forEach { snapshot ->
-            Text("${snapshot.characterName}: inventory updated ${snapshot.updatedAt}")
+        state.inventoryUpdatedAt?.let { updated ->
+            Text("Inventory updated ${UPDATED_FORMAT.format(updated)}", style = MaterialTheme.typography.bodySmall)
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         state.failures.forEach { failure ->
@@ -58,3 +60,5 @@ fun AssetsScreen(viewModel: AssetsViewModel) {
         }
     }
 }
+
+private val UPDATED_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
