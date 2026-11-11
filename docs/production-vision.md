@@ -120,6 +120,10 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
   single run longer than the cycle stays one run per job. Splitting does not change demand, only the number of jobs, which is
   where job slots will bite (see Deferred).
 - The resulting levels feed the normal replenish logic, so the upstream phases are planned to refill them.
+- **Running hull jobs do not reduce the requirement.** Readiness means "able to start N jobs". Starting them spends the
+  materials, so afterwards the plan asks for the shortfall again, which is the point. A project's tab lists its running hull
+  jobs for information only. What does count as stock is the output of running jobs of the **upstream** phases (components,
+  reactions) that will land in the hangars within the cycle, never the hulls themselves.
 - **Fixed-run blueprint copies:** invented copies (T3 hulls and subsystems) have a fixed run count (4 for the owner), so
   the job size is the copy's runs, not the cycle capacity. Goals for such items are explicit (N hulls plus a named
   list of subsystems) and are rounded to whole copies. BPC runs are stock (see above).
@@ -172,7 +176,7 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 4. Done: phases as layers numbered from the most upstream, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
 5. Stock sources beyond assets: unclaimed and running job output, BPC runs.
 6. Tick-off from the Jobs data. Started: a project declares the items it exists to produce (the hulls) and its tab lists the
-   running ESI jobs making them, with a summary ("Legion 8, Tengu 8 in progress"). To do: match running jobs of the phases to the
-   planned jobs, and count what is running (output finishing within the cycle) as stock.
+   running ESI jobs making them, with a summary ("Legion 8, Tengu 8 in progress"). The hull jobs are informational and never change the plan. To do: match running jobs of the
+   upstream phases to the planned jobs, and count their output finishing within the cycle as stock.
 7. Exact job time from ESI, slot checks, job splitting, capacity warnings.
 8. Profit, then trading.
