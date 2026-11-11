@@ -1,0 +1,67 @@
+package eve.hq.core.production
+
+import org.assertj.core.api.Assertions.assertThat
+import java.time.Duration
+import kotlin.test.Test
+import kotlin.test.assertFailsWith
+
+class RunTimeTest {
+    @Test
+    fun `without any modifier a job takes its base time per run`() {
+        assertThat(TimeModifiers().seconds(baseSecondsPerRun = 75, runs = 10)).isEqualTo(750)
+    }
+
+    @Test
+    fun `reductions multiply, they do not add up`() {
+        // 20% off from the blueprint and 15% off from the structure is 0.8 x 0.85 = 0.68, not 0.65.
+        val modifiers = TimeModifiers(blueprintTe = 20, structure = 0.15)
+
+        assertThat(modifiers.seconds(100, 1)).isEqualTo(68)
+    }
+
+    @Test
+    fun `skills and implants multiply with everything else`() {
+        val modifiers = TimeModifiers(skills = listOf(0.20, 0.15), implants = listOf(0.02))
+
+        assertThat(modifiers.seconds(10_000, 1)).isEqualTo(6_664) // 0.8 x 0.85 x 0.98
+    }
+
+    // Reproduces the game: 21,772 runs of Photon Microprocessor (75 s base) by a character with Industry V, Advanced
+    // Industry V and two implants (2% and 4%) at a Raitaru (15%), using a 20% TE blueprint: 8d 5h 19m in game.
+    @Test
+    fun `a real job from the game is reproduced to the minute`() {
+        val modifiers = TimeModifiers(
+            blueprintTe = 20,
+            skills = ManufacturingSkills.reductions(industry = 5, advancedIndustry = 5),
+            implants = listOf(0.02, 0.04),
+            structure = 0.15,
+        )
+
+        val seconds = modifiers.seconds(baseSecondsPerRun = 75, runs = 21_772)
+
+        val inGame = Duration.ofDays(8).plusHours(5).plusMinutes(19).seconds
+        assertThat(seconds).isBetween(inGame, inGame + 59) // the game shows whole minutes
+    }
+
+    @Test
+    fun `industry takes 4 percent and advanced industry 3 percent off per level`() {
+        assertThat(ManufacturingSkills.reductions(industry = 3, advancedIndustry = 0)).containsExactly(0.12, 0.0)
+        assertThat(ManufacturingSkills.reductions(industry = 0, advancedIndustry = 4)).containsExactly(0.0, 0.12)
+    }
+
+    @Test
+    fun `the time is rounded once, not per run`() {
+        // 75 s x 0.4352 = 32.64 s a run; 10 runs are 326.4 s, which rounds to 326, where per-run rounding would give 330.
+        val modifiers = TimeModifiers(blueprintTe = 20, structure = 0.15, skills = listOf(0.36))
+
+        assertThat(modifiers.seconds(75, 10)).isEqualTo(326)
+    }
+
+    @Test
+    fun `reductions outside what the game allows are rejected`() {
+        assertFailsWith<IllegalArgumentException> { TimeModifiers(blueprintTe = 22) }
+        assertFailsWith<IllegalArgumentException> { TimeModifiers(structure = 1.0) }
+        assertFailsWith<IllegalArgumentException> { TimeModifiers(skills = listOf(-0.1)) }
+        assertFailsWith<IllegalArgumentException> { ManufacturingSkills.reductions(industry = 6, advancedIndustry = 0) }
+    }
+}
