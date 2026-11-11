@@ -369,4 +369,16 @@ class PlanProductionTest {
         assertThat(plan.jobs.all { it.totalSeconds <= twoWeeks.seconds }).isTrue()
         assertThat(plan.jobs.first().totalSeconds).isEqualTo(1_209_589) // 67,737 x 25 s / 1.4; the 68th run no longer fits
     }
+
+    @Test
+    fun `the window keeps jobs short of the full cycle`() {
+        // 100,000 s a run: 11 runs fit in 14 days less 12 hours (1,166,400 s), where 12 fit in the whole cycle.
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 100), blueprint = 1, secondsPerRun = 100_000)
+        val cycle = CycleSettings(twoWeeks, window = java.time.Duration.ofHours(12))
+
+        val plan = plan(cycleProject("Frigates", cycle, rifter to 30))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(11L, 11L, 8L)
+        assertThat(plan.jobs.all { it.totalSeconds <= cycle.usable.seconds }).isTrue()
+    }
 }

@@ -27,8 +27,8 @@ fun readinessRequirements(
 ): List<Requirement> {
     val perHull = hulls.map { hull ->
         val recipe = requireNotNull(recipes.forProduct(hull)) { "Type $hull has no recipe to take inputs from" }
-        // A single run longer than the cycle still needs its inputs, so at least one run counts.
-        val runs = maxOf(1L, cycle.length.seconds / recipe.secondsPerRun)
+        // A single run longer than the usable cycle still needs its inputs, so at least one run counts.
+        val runs = maxOf(1L, cycle.usable.seconds / recipe.secondsPerRun)
         recipe.materials.mapValues { (_, perRun) -> perRun * runs }
     }
     val largest = perHull.flatMap { it.entries }.groupBy({ it.key }, { it.value }).mapValues { (_, needs) -> needs.max() }

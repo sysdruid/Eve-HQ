@@ -95,4 +95,20 @@ class GoalsTest {
         assertFailsWith<IllegalArgumentException> { CycleSettings(Duration.ZERO) }
         assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, speed = 0.0) }
     }
+
+    @Test
+    fun `the window keeps the end of the cycle free, so fewer runs fit`() {
+        // 14 days less 12 hours is 1,166,400 s: at 240,000 s a run, 4 runs fit, not 5.
+        val book = hullRecipes(hull(1, 240_000, tritanium to 100))
+        val cycle = CycleSettings(twoWeeks, window = Duration.ofHours(12))
+
+        assertThat(cycle.usable).isEqualTo(Duration.ofHours(14 * 24 - 12))
+        assertThat(readinessRequirements(book, listOf(1), cycle, 1, "ready")).containsExactly(Requirement(tritanium, 400, "ready"))
+    }
+
+    @Test
+    fun `the window must be shorter than the cycle and not negative`() {
+        assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, window = twoWeeks) }
+        assertFailsWith<IllegalArgumentException> { CycleSettings(twoWeeks, window = Duration.ofHours(-1)) }
+    }
 }
