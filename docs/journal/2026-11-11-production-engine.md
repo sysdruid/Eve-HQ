@@ -42,6 +42,10 @@
   job of 67,737 runs read 0.8% too long, so the job carries its exact total), and use exact decimals for the speed multiplier
   so 15 x 1.4 is 21, not 22. The probe also showed the real cost of N = 10: over two hundred jobs, which is where slots
   will become the limit.
+- A project now knows what it exists to produce (`endProducts`), and its tab lists the running ESI jobs for those products
+  next to the plan, reusing the Jobs tab's line and progress formatting (extracted, not copied). My first reading of the request
+  ("the jobs that build the hulls") was the jobs still to be started; the owner meant the ones already running. Asking what the
+  numbers should be used for, not just how to display them, would have saved a round trip.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

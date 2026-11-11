@@ -11,6 +11,7 @@ import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.ListBlueprints
 import eve.hq.core.production.Items
+import eve.hq.core.production.ListProjectJobs
 import eve.hq.core.production.ListStockpiles
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.Projects
@@ -112,8 +113,9 @@ object AppServices {
                 EveJobSource(http.value, staticTypeNames = staticTypeNames, pageCache = jobPageCache, clock = clock, locationNames = locationNames),
             )
         }
+        val listJobs = lazy { ListJobs(jobSource.value, clock) }
         val jobs = lazy {
-            JobsViewModel(listCharacters, ListJobs(jobSource.value, clock), clock, scope, Dispatchers.IO)
+            JobsViewModel(listCharacters, listJobs.value, clock, scope, Dispatchers.IO)
         }
         val blueprints = lazy {
             val source = RefreshingBlueprintSource(
@@ -134,10 +136,13 @@ object AppServices {
         val staticItems = StaticItemCatalog(database.dataSource)
         val recipeBook = StaticRecipeBook(database.dataSource)
         val projects = lazy {
+            val definitions = Projects(Items(staticItems), recipeBook)
             ProjectsViewModel(
                 listCharacters,
-                PlanProject(Projects(Items(staticItems), recipeBook), recipeBook, assetService.value),
+                PlanProject(definitions, recipeBook, assetService.value),
+                ListProjectJobs(definitions, listJobs.value),
                 staticItems,
+                clock,
                 scope,
                 Dispatchers.IO,
             )

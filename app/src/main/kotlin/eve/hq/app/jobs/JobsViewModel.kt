@@ -5,7 +5,6 @@ import java.util.logging.Logger
 import eve.hq.core.character.ListCharacters
 import eve.hq.core.industry.JobLoadFailure
 import eve.hq.core.industry.JobRow
-import eve.hq.core.industry.JobStatus
 import eve.hq.core.industry.ListJobs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,10 +17,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Clock
-
-enum class JobLineStatus(val label: String) { Running("Active"), Paused("Paused"), Ready("Ready") }
-
-data class JobLine(val text: String, val status: JobLineStatus, val progress: Float)
 
 data class JobsUiState(
     val loading: Boolean = false,
@@ -79,20 +74,7 @@ class JobsViewModel(
 
     private fun lines(): List<JobLine> {
         val now = clock.instant()
-        return rows.map { row ->
-            val ready = row.isReady(now)
-            val etl = if (ready) "done" else row.remaining(now).asEtl()
-            val status = when {
-                ready -> JobLineStatus.Ready
-                row.status == JobStatus.Paused -> JobLineStatus.Paused
-                else -> JobLineStatus.Running
-            }
-            JobLine(
-                text = "${row.characterName}-${row.itemName} [${row.runs}] ${row.activity.code}  ETL: $etl  ${status.label} @ ${row.facilityName}",
-                status = status,
-                progress = row.progress(now).toFloat(),
-            )
-        }
+        return rows.map { it.toLine(now) }
     }
 
     private companion object {

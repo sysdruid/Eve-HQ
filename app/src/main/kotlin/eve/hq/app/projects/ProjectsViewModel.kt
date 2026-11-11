@@ -2,7 +2,12 @@ package eve.hq.app.projects
 
 import eve.hq.core.asset.AssetLoadFailure
 import eve.hq.core.character.ListCharacters
+import eve.hq.app.jobs.JobLine
+import eve.hq.app.jobs.toLine
+import eve.hq.core.industry.JobLoadFailure
+import eve.hq.core.industry.JobRow
 import eve.hq.core.production.ItemCatalog
+import eve.hq.core.production.ListProjectJobs
 import eve.hq.core.production.PlanProject
 import eve.hq.core.production.ProjectId
 import eve.hq.core.production.StockpileStatus
@@ -19,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Clock
 import java.time.Duration
 import java.util.Locale
 import java.util.logging.Level
@@ -39,6 +45,10 @@ data class ProjectsUiState(
     val phases: List<PhaseBlock> = emptyList(),
     val shopping: List<ShoppingLine> = emptyList(),
     val failures: List<AssetLoadFailure> = emptyList(),
+    /** Running jobs making the project's end products (the hulls), as the Jobs tab shows them. */
+    val hullJobs: List<JobLine> = emptyList(),
+    val hullJobsSummary: String = "",
+    val jobFailures: List<JobLoadFailure> = emptyList(),
     val error: String? = null,
 )
 
@@ -47,7 +57,9 @@ private val log = Logger.getLogger(ProjectsViewModel::class.java.name)
 class ProjectsViewModel(
     private val listCharacters: ListCharacters,
     private val planProject: PlanProject,
+    private val listProjectJobs: ListProjectJobs,
     private val catalog: ItemCatalog,
+    private val clock: Clock,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
 ) {
@@ -75,6 +87,8 @@ class ProjectsViewModel(
             try {
                 val characters = withContext(io) { listCharacters() }
                 val result = withContext(io) { planProject(project, characters, refresh = fetch) }
+                val running = withContext(io) { listProjectJobs(project, characters) }
+                val now = clock.instant()
                 _state.update {
                     it.copy(
                         loading = false,
@@ -85,6 +99,9 @@ class ProjectsViewModel(
                         },
                         shopping = result.plan.shoppingList.map(::shoppingLine),
                         failures = result.failures,
+                        hullJobs = running.rows.map { row -> row.toLine(now) },
+                        hullJobsSummary = summary(running.rows),
+                        jobFailures = running.failures,
                     )
                 }
             } catch (e: CancellationException) {
@@ -99,11 +116,22 @@ class ProjectsViewModel(
                         phases = emptyList(),
                         shopping = emptyList(),
                         failures = emptyList(),
+                        hullJobs = emptyList(),
+                        hullJobsSummary = "",
+                        jobFailures = emptyList(),
                         error = e.message ?: "Unable to plan the project",
                     )
                 }
             }
         }
+    }
+
+    /** "Legion 8, Tengu 8 in progress (2 jobs)": runs of a hull job are hulls, summed per product. */
+    private fun summary(rows: List<JobRow>): String {
+        if (rows.isEmpty()) return ""
+        val perProduct = rows.groupBy { it.itemName }.map { (name, jobs) -> "$name ${count(jobs.sumOf { it.runs }.toLong())}" }
+        val jobs = if (rows.size == 1) "1 job" else "${rows.size} jobs"
+        return "${perProduct.joinToString(", ")} in progress ($jobs)"
     }
 
     private fun jobLine(job: PlannedJob): String {

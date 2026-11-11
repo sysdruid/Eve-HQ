@@ -56,7 +56,8 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
         }
         // Goals, the shopping list (what to get before anything starts), then one tab per phase; the phases run in
         // parallel, so they are tabs, not steps.
-        val lastTab = state.phases.size + 1 // goals and the shopping list are tabs 0 and 1, the phases follow
+        // Goals and the shopping list are tabs 0 and 1, the phases follow, and the running hull jobs come last.
+        val lastTab = state.phases.size + 2
         var selectedTab by remember(state.selected) { mutableIntStateOf(0) }
         val tab = selectedTab.coerceIn(0, lastTab)
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
@@ -69,6 +70,11 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                     text = { Text("${phase.title} (${phase.jobs.size})") },
                 )
             }
+            Tab(
+                selected = tab == lastTab,
+                onClick = { selectedTab = lastTab },
+                text = { Text("Hull jobs (${state.hullJobs.size})") },
+            )
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (tab) {
@@ -81,6 +87,14 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                             Text(line.text)
                         }
                     }
+                }
+                lastTab -> {
+                    if (state.hullJobsSummary.isNotEmpty()) item { Text(state.hullJobsSummary, style = MaterialTheme.typography.titleMedium) }
+                    state.jobFailures.forEach { failure ->
+                        item { Text("${failure.characterName}: ${failure.message}", color = MaterialTheme.colorScheme.error) }
+                    }
+                    if (state.hullJobs.isEmpty() && !state.loading && state.error == null) item { Text("No hull jobs running.") }
+                    items(state.hullJobs) { line -> JobLineItem(line) }
                 }
                 else -> {
                     item {
