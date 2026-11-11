@@ -51,7 +51,8 @@ class PlanProduction(private val recipes: RecipeBook) {
             val perJob = cycle?.maxRunsPerJob(recipe.secondsPerRun) ?: runs
             val seconds = cycle?.effectiveSecondsPerRun(recipe.secondsPerRun) ?: recipe.secondsPerRun
             for (chunk in generateSequence(runs) { it - perJob }.takeWhile { it > 0 }.map { minOf(it, perJob) }) {
-                jobs += PlannedJob(item, chunk, projectNames, phase, recipe.blueprint, seconds)
+                val total = cycle?.effectiveSeconds(recipe.secondsPerRun, chunk) ?: (chunk * recipe.secondsPerRun)
+                jobs += PlannedJob(item, chunk, projectNames, phase, recipe.blueprint, seconds, total)
             }
             recipe.materials.forEach { (material, perRun) ->
                 add(material, Jobs(item), perRun * runs)

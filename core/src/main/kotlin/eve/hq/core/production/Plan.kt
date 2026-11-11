@@ -40,6 +40,8 @@ data class PlannedJob(
     val phase: Int,
     val blueprint: TypeId,
     val secondsPerRun: Int,
+    /** The job's exact length; [secondsPerRun] is rounded, so runs x it can overstate a job of many short runs. */
+    val totalSeconds: Long = runs * secondsPerRun,
 )
 
 data class PlanPhase(val number: Int, val jobs: List<PlannedJob>)

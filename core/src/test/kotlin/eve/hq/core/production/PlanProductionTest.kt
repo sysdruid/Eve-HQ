@@ -356,4 +356,17 @@ class PlanProductionTest {
         assertThat(unlimited.jobs.map { it.runs }).containsExactly(30L)
         assertThat(mixed.jobs.map { it.runs }).containsExactly(12L, 12L, 6L)
     }
+
+    @Test
+    fun `no split job outlasts the cycle, even when a rounded run time would suggest it`() {
+        // 25 s a run at speed 1.4 is 17.857 s, shown as 18 s; 18 s x 67,737 runs would read as 338 h, over the 336 h cycle.
+        recipes[rifter] = Recipe(rifter, 1, mapOf(tritanium to 1), blueprint = 1, secondsPerRun = 25)
+
+        val plan = plan(cycleProject("Frigates", CycleSettings(twoWeeks, speed = 1.4), rifter to 250_000))
+
+        assertThat(plan.jobs.map { it.runs }).containsExactly(67_737L, 67_737L, 67_737L, 250_000L - 3 * 67_737L)
+        assertThat(plan.jobs.map { it.secondsPerRun }.distinct()).containsExactly(18)
+        assertThat(plan.jobs.all { it.totalSeconds <= twoWeeks.seconds }).isTrue()
+        assertThat(plan.jobs.first().totalSeconds).isEqualTo(1_209_589) // 67,737 x 25 s / 1.4; the 68th run no longer fits
+    }
 }

@@ -15,6 +15,10 @@ data class CycleSettings(val length: Duration, val speed: Double = 1.0) {
     fun effectiveSecondsPerRun(baseSeconds: Int): Int =
         (BigDecimal(baseSeconds) / BigDecimal(speed.toString())).setScale(0, RoundingMode.HALF_UP).toInt()
 
+    /** The exact seconds [runs] runs take, rounded once at the end, not per run. */
+    fun effectiveSeconds(baseSeconds: Int, runs: Long): Long =
+        (BigDecimal(baseSeconds) * BigDecimal(runs) / BigDecimal(speed.toString())).setScale(0, RoundingMode.HALF_UP).toLong()
+
     /** The most runs one job may have and still end within the cycle; a single run longer than the cycle is still one. */
     fun maxRunsPerJob(baseSeconds: Int): Long {
         val fitting = (BigDecimal(length.seconds) * BigDecimal(speed.toString())).divideToIntegralValue(BigDecimal(baseSeconds))

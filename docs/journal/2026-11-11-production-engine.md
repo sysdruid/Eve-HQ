@@ -37,6 +37,11 @@
   delay (`DB_CLOSE_DELAY`) took planning from 145 s to 0.4 s and still frees the file lock for the import command. A global
   temporary table, which H2 drops on close, makes a cheap regression test for "stayed open". Tests that simulate an app
   restart by reopening the same directory need the delay switched off.
+- The readiness project (any medium T2 hull, N jobs, a cycle) ran on the real recipes in under a second: 23 requirements, three
+  phases, long jobs split to fit the cycle. Two lessons: round once at the end (a per-run time rounded to whole seconds made a
+  job of 67,737 runs read 0.8% too long, so the job carries its exact total), and use exact decimals for the speed multiplier
+  so 15 x 1.4 is 21, not 22. The probe also showed the real cost of N = 10: over two hundred jobs, which is where slots
+  will become the limit.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written

@@ -104,12 +104,18 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 - For the first version the selection is an explicit list of a few named hulls; the race and group filters follow once
   the type attributes are imported. The goal's requirements are the **direct inputs** of the hull job (components, and the
   T1 hull where a T2 recipe needs one); everything below follows from the replenish logic as virtual stockpiles.
-- Each member gets a per-job run count: how many runs fit in one cycle, `floor(cycle length / base build time)`,
-  times a manual **speed** multiplier (v1 used 1.4). Long builds give small counts and short builds large ones.
-- The level of each material is the **maximum over all members** of what one such job needs, times a **scale** factor:
-  enough to start any potential hull job. v1 averaged the bills; that did not work as well as expected, so averaging is dropped.
-  The scale is the number of such jobs the owner wants to be able to start, a free number tuned so the upstream phases come out
-  balanced (v1 used 10).
+- Each member's cycle job runs as many times as fit in the cycle at base time: `floor(cycle length / base build time)`,
+  at least one run. (v1 used a 7-day period, dropped hulls whose single run outlasted it, and dropped exotic blueprints
+  that run for seconds; an explicit hull list makes those filters unnecessary.)
+- The level of each material is the **maximum over all members** of what one such job needs, taken per material, then
+  multiplied by the cycle's **speed** (v1 used 1.4: the quantities grow because jobs run faster than base time) and by the
+  **scale**, the number of such jobs the owner wants to be able to start (v1 used 10). Rounded up, with exact decimals. Averaging
+  the bills (v1) is dropped: it understates the most demanding hull. Because the maximum is per material, the stockpile can
+  exceed what any single hull needs; that is deliberate, it covers starting any hull's job.
+- **A cycle limits job length:** a planned job may not run longer than the cycle (runs x base time / speed). A longer one is
+  split into jobs that each fit, the remainder last (three weeks of work in a two-week cycle becomes two weeks plus one). A
+  single run longer than the cycle stays one run per job. Splitting does not change demand, only the number of jobs, which is
+  where job slots will bite (see Deferred).
 - The resulting levels feed the normal replenish logic, so the upstream phases are planned to refill them.
 - **Fixed-run blueprint copies:** invented copies (T3 hulls and subsystems) have a fixed run count (4 for the owner), so
   the job size is the copy's runs, not the cycle capacity. Goals for such items are explicit (N hulls plus a named
@@ -157,8 +163,9 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
    Anathema jobs, built from the reusable `inputsOfJobs` goal: components, composites and intermediates are built in phases,
    everything else is bought) and the Anathema build rule written from the real groups in its tree. Next: the aggregated
    shopping list over all projects, copy buttons and the per-item contributions on click, then more projects.
-3b. Readiness goals: explicit hull list, per-job run counts from the speed multiplier, max over members x scale, direct
-   inputs as requirements; fixed-run copies. Selector filters after the type-attribute import.
+3b. Readiness goals. Done: explicit hull list, runs that fit the cycle, max over members per material x speed x jobs, direct
+   inputs as requirements, and job splitting by cycle length (the Medium T2 hulls project, configured in `Projects.kt`).
+   To do: fixed-run copies (T3), selector filters after the type-attribute import, slot and blueprint max-run limits.
 4. Done: phase as depth in the plan, and per-project build rules. Next: names for phases, then the persisted cycle plan, to-do with copyable names (characters, stations), multibuy list.
 5. Stock sources beyond assets: unclaimed and running job output, BPC runs.
 6. Tick-off from the Jobs data.
