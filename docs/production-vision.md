@@ -32,9 +32,10 @@ Project/Phase/Job vocabulary of `lessons-from-v1.md` where they differ.
   - **Readiness goal:** "have the materials to start cycle-long jobs for any item in a selection" (scaled) (for example any T2 medium
     hull of Amarr, ORE or Gallente origin). The hull jobs are not planned; the owner picks which hull to build at job
     start. The plan only guarantees the inputs exist.
-- **Stop items** are set per project and are never expanded into their own inputs by that project: raw materials, PI,
-  datacores, relics, decryptors and anything the owner chooses to buy. A project's need for one still counts as demand
-  on that item (see Stockpiles). Fuel is an example: a Fuel project states its level, the other projects only use it.
+- **What is built and what is bought is part of each project's definition;** the tool assumes nothing about any specific item.
+  A project names its **stop items**: items it never expands into their own inputs (it buys or otherwise obtains them).
+  Anything else with a recipe is expanded. A project's need for a stop item still counts as demand on that item (see
+  Stockpiles).
 - **BPC runs** are stock: the owner sets an expected level and the plan flags when it runs low. Invention is the
   same replenish logic, only not triggered every cycle.
 
@@ -58,8 +59,8 @@ A stockpile is one item, optionally at one station, with levels: **required**, o
 optional **overflow** (consider selling; a flag only, never acted on). There is one concept with two origins:
 
 - **Manual:** the owner sets the levels (the Stockpiles tab, implemented). It is a reserve: wanted on top of whatever
-  projects consume. On an item with a recipe it is a goal and creates jobs; on a stop item or an item without a recipe it
-  only signals.
+  projects consume. It only adds demand; whether jobs result is decided by the projects (an item is built if any
+  project builds it), so a manual stockpile never builds anything on its own.
 - **Virtual:** derived from project requirements. Every intermediate is virtual: its demand comes from the inputs of the
   next phase.
 
@@ -72,8 +73,8 @@ way; for derived demand it is `required x (1 + coefficient)` (coefficient 0 by d
 Planning therefore sums the demands of all active projects per item first. An item is built if any project builds it; a
 project that stops at it still adds to its demand, and the jobs are sized to the total deficit.
 
-**The shopping list is a view,** not a separate stockpile: the items no job produces (base materials, stop items of any
-phase) with a deficit. That is the input of the earliest phase plus the stop items of later ones.
+**The shopping list is a view,** not a separate stockpile: the items no job produces (those without a recipe, and the stop
+items of any phase) with a deficit. That is the input of the earliest phase plus the stop items of later ones.
 
 - A **next-cycle estimate** shows what the goals will consume next cycle assuming intermediates start empty, minus what
   will be on hand after this cycle. Harvesting and hauling take time, so this shows what to start gathering now.
@@ -113,8 +114,6 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
 - Kept: failing loudly when a product has several blueprints or a blueprint has several products, until a rule exists.
 - Dropped: ignoring stock (v1 had netting commented out), which is the source of today's surplus; averaging the hull
   bills; the volume cap.
-- Fuel: a stockpile (manual, or the goal of a Fuel project). How it is built is handled outside the tool for now, so a
-  Fuel project may well only state the level and leave the jobs to the owner.
 
 ## Plan lifecycle and output
 
