@@ -105,4 +105,37 @@ class RunTimesTest {
 
         assertThat(RunTimes(rules, listOf(trainedLess)).modifiers(photon).skills).containsExactly(0.12)
     }
+
+    private class CountingRules(private val delegate: TimeRules) : TimeRules {
+        var bonusLookups = 0
+        var requiredLookups = 0
+
+        override fun bonus(type: TypeId, attribute: Int): Double? {
+            bonusLookups++
+            return delegate.bonus(type, attribute)
+        }
+
+        override fun requiredSkills(blueprint: TypeId, activity: IndustryActivity): Map<TypeId, Int> {
+            requiredLookups++
+            return delegate.requiredSkills(blueprint, activity)
+        }
+    }
+
+    @Test
+    fun `a recipe's modifiers are worked out once, and a character's own skills once per kind of job`() {
+        val counting = CountingRules(rules)
+        val runTimes = RunTimes(counting, listOf(overseer, overseer.copy(implants = emptySet())), setOf(raitaru))
+
+        runTimes.modifiers(photon, blueprintTe = 20)
+        val afterFirst = counting.bonusLookups
+        runTimes.modifiers(photon, blueprintTe = 20)
+        val afterRepeat = counting.bonusLookups
+        runTimes.modifiers(photon.copy(blueprint = 101L), blueprintTe = 20) // another blueprint of the same activity
+        val afterOther = counting.bonusLookups
+
+        assertThat(afterRepeat).isEqualTo(afterFirst) // the same recipe is not asked about again
+        // Another blueprint only costs its own required skills (here none match), never the characters' whole skill lists again.
+        assertThat(afterOther - afterRepeat).isLessThanOrEqualTo(2 * 2)
+        assertThat(counting.requiredLookups).isEqualTo(2)
+    }
 }

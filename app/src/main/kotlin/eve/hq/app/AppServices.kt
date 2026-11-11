@@ -10,6 +10,7 @@ import eve.hq.core.asset.AssetService
 import eve.hq.core.asset.ListAssets
 import eve.hq.core.asset.RefreshingAssetSource
 import eve.hq.core.blueprint.ListBlueprints
+import eve.hq.core.production.CachedTimeRules
 import eve.hq.core.production.ImplantSource
 import eve.hq.core.production.Items
 import eve.hq.core.production.ListStockpiles
@@ -150,7 +151,7 @@ object AppServices {
             val eveImplants = EveImplantSource(http.value)
             val eveStructures = EveStructureTypes(http.value)
             RunTimeService(
-                StaticTimeRules(database.dataSource),
+                CachedTimeRules(StaticTimeRules(database.dataSource)),
                 SkillSource { eveSkills.levels(fresh(it)) },
                 ImplantSource { eveImplants.implants(fresh(it)) },
                 StructureTypes { character, facility -> eveStructures.typeOf(fresh(character), facility) },
