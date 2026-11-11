@@ -112,7 +112,9 @@ Carried over from the v1 notebooks (`~/IdeaProjects/EVE`, `IndustryHelper.t2Ship
   **scale**, the number of such jobs the owner wants to be able to start (v1 used 10). Rounded up, with exact decimals. Averaging
   the bills (v1) is dropped: it understates the most demanding hull. Because the maximum is per material, the stockpile can
   exceed what any single hull needs; that is deliberate, it covers starting any hull's job.
-- **A cycle limits job length:** a planned job may not run longer than the cycle (runs x base time / speed). A longer one is
+- **A cycle limits job length:** a planned job may not run longer than the usable cycle: the cycle minus a **window** kept
+  free at its end (12 hours for the owner), so there is time to get to the game and restart jobs. The same usable length
+  sizes a hull's cycle job. Job length is runs x base time / speed. A longer one is
   split into jobs that each fit, the remainder last (three weeks of work in a two-week cycle becomes two weeks plus one). A
   single run longer than the cycle stays one run per job. Splitting does not change demand, only the number of jobs, which is
   where job slots will bite (see Deferred).

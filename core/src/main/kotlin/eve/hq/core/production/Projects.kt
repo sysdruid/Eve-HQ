@@ -13,7 +13,8 @@ data class ReadinessConfig(val hulls: List<String>, val cycle: CycleSettings, va
 /**
  * The medium T2 hull project's settings; edit them here. The hulls are plain item names (a few, for testing), the speed
  * multiplies quantities as in the v1 notebooks (1.4, to be replaced by real job times later), and the cycle also limits how
- * long a job of the phases below may run.
+ * long a job of the phases below may run. The window keeps the last 12 hours of the cycle free of jobs, so there is time to
+ * get to the game and restart them.
  */
 val MEDIUM_T2_HULLS = ReadinessConfig(
     hulls = listOf(
@@ -22,7 +23,7 @@ val MEDIUM_T2_HULLS = ReadinessConfig(
         "Impel","Prorator","Viator","Occator","Hulk","Skiff","Mackinaw",
         "Absolution","Damnation", "Astarte", "Eos"
     ),
-    cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4),
+    cycle = CycleSettings(java.time.Duration.ofDays(14), speed = 1.4, window = java.time.Duration.ofHours(12)),
     jobs = 2,
 )
 
