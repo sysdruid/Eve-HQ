@@ -29,7 +29,10 @@ class ProjectsViewModelTest {
     private val scope = TestScope(dispatcher)
     private val system = AppSystem(scope, dispatcher)
 
-    private val names = mutableMapOf(11134L to "Amarr Shuttle", 11135L to "Amarr Shuttle Blueprint", 34L to "Tritanium")
+    private val names = mutableMapOf(
+        11134L to "Amarr Shuttle", 11135L to "Amarr Shuttle Blueprint", 34L to "Tritanium",
+        11188L to "Anathema", 11189L to "Anathema Blueprint", 11543L to "Tungsten Carbide Armor Plate",
+    )
     private val catalog = object : ItemCatalog {
         override fun itemName(item: Long) = names[item]
 
@@ -38,7 +41,11 @@ class ProjectsViewModelTest {
         override fun findItem(name: String) = names.entries.firstOrNull { it.value == name }?.key
     }
     private val recipes = RecipeBook { product ->
-        Recipe(11134, 1, mapOf(34L to 2778), blueprint = 11135, secondsPerRun = 6000).takeIf { product == 11134L }
+        when (product) {
+            11134L -> Recipe(11134, 1, mapOf(34L to 2778), blueprint = 11135, secondsPerRun = 6000)
+            11188L -> Recipe(11188, 1, mapOf(11543L to 300), blueprint = 11189, secondsPerRun = 120_000)
+            else -> null
+        }
     }
     private var assets: suspend () -> List<AssetItem> = { emptyList() }
     private val service = AssetService(AssetSource { assets() }, Clock.systemUTC())
@@ -97,5 +104,35 @@ class ProjectsViewModelTest {
         assertThat(state.loading).isFalse()
         assertThat(state.error).contains("Amarr Shuttle")
         assertThat(state.phases).isEmpty()
+    }
+
+    @Test
+    fun `the projects on offer are listed and selecting one plans that project`() {
+        system.store(1, "Alice")
+        val viewModel = viewModel()
+
+        assertThat(viewModel.state.value.projects.map { it.id }).containsExactly(ProjectId.AmarrShuttles, ProjectId.AnathemaInputs)
+        assertThat(viewModel.state.value.selected).isEqualTo(ProjectId.AmarrShuttles)
+
+        viewModel.select(ProjectId.AnathemaInputs)
+
+        val state = viewModel.state.value
+        assertThat(state.selected).isEqualTo(ProjectId.AnathemaInputs)
+        assertThat(state.title).isEqualTo("Inputs for 10 Anathemas")
+        assertThat(state.goals).containsExactly("3,000 × Tungsten Carbide Armor Plate")
+        assertThat(state.loading).isFalse()
+    }
+
+    @Test
+    fun `selecting while another project is still planning switches to the newly selected one`() {
+        system.store(1, "Alice")
+        val pending = CompletableDeferred<List<AssetItem>>()
+        assets = { pending.await() }
+        val viewModel = viewModel()
+
+        viewModel.select(ProjectId.AnathemaInputs)
+        pending.complete(emptyList())
+
+        assertThat(viewModel.state.value.title).isEqualTo("Inputs for 10 Anathemas")
     }
 }

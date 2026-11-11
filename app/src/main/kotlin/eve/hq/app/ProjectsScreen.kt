@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +28,15 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(state.title.ifEmpty { "Projects" }, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             OutlinedButton(onClick = { viewModel.refresh() }, enabled = !state.loading) { Text("Refresh") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            state.projects.forEach { choice ->
+                if (choice.id == state.selected) {
+                    Button(onClick = { viewModel.select(choice.id) }) { Text(choice.title) }
+                } else {
+                    OutlinedButton(onClick = { viewModel.select(choice.id) }) { Text(choice.title) }
+                }
+            }
         }
         if (state.loading) {
             Text("Planning…")

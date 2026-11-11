@@ -28,7 +28,11 @@ data class PhaseBlock(val title: String, val jobs: List<String>)
 
 data class ShoppingLine(val text: String, val status: StockpileStatus)
 
+data class ProjectChoice(val id: ProjectId, val title: String)
+
 data class ProjectsUiState(
+    val projects: List<ProjectChoice> = ProjectId.entries.map { ProjectChoice(it, it.title) },
+    val selected: ProjectId = ProjectId.entries.first(),
     val loading: Boolean = false,
     val title: String = "",
     val goals: List<String> = emptyList(),
@@ -50,34 +54,54 @@ class ProjectsViewModel(
     private val _state = MutableStateFlow(ProjectsUiState())
     val state: StateFlow<ProjectsUiState> = _state
     private var refreshJob: Job? = null
-    private val project = ProjectId.AmarrShuttles
 
     init {
-        refresh(fetch = false)
+        plan(fetch = false, restart = false)
     }
 
-    /** [fetch] false accepts the assets the service already has fresh, as opening the tab does; the button forces it. */
-    fun refresh(fetch: Boolean = true) {
-        if (refreshJob?.isActive == true) return
+    fun select(id: ProjectId) {
+        _state.update { it.copy(selected = id) }
+        plan(fetch = false, restart = true)
+    }
+
+    /** The Refresh button: asks the asset service to fetch even if its copy is still fresh. */
+    fun refresh() = plan(fetch = true, restart = false)
+
+    private fun plan(fetch: Boolean, restart: Boolean) {
+        if (restart) refreshJob?.cancel() else if (refreshJob?.isActive == true) return
+        val project = _state.value.selected
         _state.update { it.copy(loading = true, error = null) }
         refreshJob = scope.launch {
             try {
                 val characters = withContext(io) { listCharacters() }
                 val result = withContext(io) { planProject(project, characters, refresh = fetch) }
-                _state.value = ProjectsUiState(
-                    title = project.title,
-                    goals = result.goals.map { "${count(it.required)} × ${name(it.item)}" },
-                    phases = result.plan.phases.map { phase ->
-                        PhaseBlock("Phase ${phase.number}", phase.jobs.map(::jobLine))
-                    },
-                    shopping = result.plan.shoppingList.map(::shoppingLine),
-                    failures = result.failures,
-                )
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        title = project.title,
+                        goals = result.goals.map { goal -> "${count(goal.required)} × ${name(goal.item)}" },
+                        phases = result.plan.phases.map { phase ->
+                            PhaseBlock("Phase ${phase.number}", phase.jobs.map(::jobLine))
+                        },
+                        shopping = result.plan.shoppingList.map(::shoppingLine),
+                        failures = result.failures,
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 log.log(Level.WARNING, "projects view model failed", e)
-                _state.update { it.copy(loading = false, error = e.message ?: "Unable to plan the project") }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        title = project.title,
+                        goals = emptyList(),
+                        phases = emptyList(),
+                        shopping = emptyList(),
+                        failures = emptyList(),
+                        error = e.message ?: "Unable to plan the project",
+                    )
+                }
             }
         }
     }
