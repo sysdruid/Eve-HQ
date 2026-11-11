@@ -3,6 +3,9 @@ package eve.hq.app
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -18,6 +21,9 @@ import java.time.Clock
 import java.util.logging.Level
 import java.util.logging.Logger
 
+/** How much larger than the default all text is drawn. */
+internal const val UI_FONT_SCALE = 2f
+
 internal const val LATEST_SDE_URL = "https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip"
 
 fun main(args: Array<String>) {
@@ -28,11 +34,15 @@ fun main(args: Array<String>) {
         .onFailure { Logger.getLogger("eve.hq.app").log(Level.SEVERE, "Startup failed", it) }
     application {
         Window(onCloseRequest = ::exitApplication, title = "Eve-HQ") {
-            MaterialTheme {
-                services.fold(
-                    onSuccess = { Dashboard(it) },
-                    onFailure = { Text(it.message ?: it.toString(), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) },
-                )
+            val density = LocalDensity.current
+            // Scales text only (sp), not layout (dp), so every tab gets larger type at once.
+            CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * UI_FONT_SCALE)) {
+                MaterialTheme {
+                    services.fold(
+                        onSuccess = { Dashboard(it) },
+                        onFailure = { Text(it.message ?: it.toString(), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) },
+                    )
+                }
             }
         }
     }
