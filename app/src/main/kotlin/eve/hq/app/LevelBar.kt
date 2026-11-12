@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +59,7 @@ fun LevelBar(onHand: Long, required: Long, preferred: Long? = null, overflow: Lo
     // A short item is almost all track, so the track itself carries the warning.
     val track = if (levelOf(onHand, required) == Level.Short) LEVEL_SHORT_TRACK else LEVEL_TRACK
     TooltipArea(tooltip = { Tooltip(onHand, required, preferred, overflow) }) {
-        Box(modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(6.dp)).background(track)) {
+        Box(modifier.fillMaxWidth().heightIn(min = 28.dp).clip(RoundedCornerShape(6.dp)).background(track)) {
             // matchParentSize pins the constraints to the full bar, so the fraction must be applied to a child.
             Box(Modifier.matchParentSize()) {
                 Box(Modifier.fillMaxHeight().fillMaxWidth(fill).background(color))

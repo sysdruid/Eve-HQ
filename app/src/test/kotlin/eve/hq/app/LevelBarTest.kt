@@ -59,6 +59,28 @@ class LevelBarTest {
         assertThat(atPreferred(0.90f)).isEqualTo(LEVEL_COVERED.toArgb())
     }
 
+    /** How many pixels tall the bar is: the opaque pixels down its left edge; the page around it is transparent. */
+    private fun heightAt(fontScale: Float): Int {
+        val scene = ImageComposeScene(WIDTH, 200, Density(1f, fontScale)) { LevelBar(onHand = 1_000, required = 1_000) }
+        try {
+            val bitmap = Bitmap.makeFromImage(scene.render())
+            return (0 until bitmap.height).count { (bitmap.getColor(3, it) ushr 24) != 0 }
+        } finally {
+            scene.close()
+        }
+    }
+
+    // Regression guard: the bar had a fixed height, so at the app's doubled text size the numbers were cut off.
+    @Test
+    fun `the bar grows with the text instead of cutting the numbers off`() {
+        val normal = heightAt(fontScale = 1f)
+        val large = heightAt(fontScale = 2f)
+
+        assertThat(normal).isGreaterThanOrEqualTo(28)
+        assertThat(large).isGreaterThan(normal)
+        assertThat(large).isGreaterThanOrEqualTo(2 * 14 + 2 * 3) // two line heights of 14sp text plus its padding
+    }
+
     private companion object {
         const val WIDTH = 400
         const val BAR_WIDTH = 400 // the bar fills the width it is given
