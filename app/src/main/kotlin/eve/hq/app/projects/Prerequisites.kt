@@ -2,10 +2,9 @@ package eve.hq.app.projects
 
 import eve.hq.core.production.ItemCatalog
 import eve.hq.core.production.ItemDemand
-import eve.hq.core.production.StockpileStatus
-import java.util.Locale
 
-data class PrerequisiteLine(val text: String, val status: StockpileStatus, val item: Long)
+/** One missing item: what is held against what is needed (and the preferred level, when it asks for more). */
+data class PrerequisiteLine(val name: String, val item: Long, val onHand: Long, val required: Long, val preferred: Long?)
 
 /** One item group of the prerequisites, with the EVE multibuy paste text for just that group. */
 data class PrerequisiteGroup(val name: String, val lines: List<PrerequisiteLine>, val multibuy: String)
@@ -25,9 +24,11 @@ internal fun groupPrerequisites(demands: List<ItemDemand>, catalog: ItemCatalog)
         .joinToString("\n") { "${name(it)} ${it.deficitToPreferred}" }
 
     fun line(demand: ItemDemand) = PrerequisiteLine(
-        "${name(demand)}  need ${count(demand.required)}  on hand ${count(demand.onHand)}  short ${count(demand.deficit)}",
-        demand.status,
+        name(demand),
         demand.item,
+        demand.onHand,
+        demand.required,
+        demand.preferred.takeIf { it > demand.required },
     )
 
     fun byName(items: List<ItemDemand>) = items.sortedBy { name(it).lowercase() }
@@ -40,5 +41,3 @@ internal fun groupPrerequisites(demands: List<ItemDemand>, catalog: ItemCatalog)
         }
     return Prerequisites(groups, multibuy(byName(demands)))
 }
-
-private fun count(value: Long) = "%,d".format(Locale.ROOT, value)

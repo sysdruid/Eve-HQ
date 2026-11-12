@@ -23,9 +23,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
-data class StockpileLine(val key: StockpileKey, val name: String, val text: String, val status: StockpileStatus)
+data class StockpileLine(
+    val key: StockpileKey,
+    val name: String,
+    /** The station or structure the stockpile is kept at, if it is tied to one. */
+    val station: String?,
+    val onHand: Long,
+    val required: Long,
+    val preferred: Long?,
+    val overflow: Long?,
+    val status: StockpileStatus,
+) {
+    val title: String get() = if (station == null) name else "$name @ $station"
+}
 
 data class StockpileForm(
     val item: ItemType? = null,
@@ -182,14 +193,7 @@ class StockpilesViewModel(
 
     private fun line(row: StockpileRow): StockpileLine {
         val pile = row.stockpile
-        val levels = listOfNotNull(
-            "required ${count(pile.required)}",
-            pile.preferred?.let { "preferred ${count(it)}" },
-            pile.overflow?.let { "overflow ${count(it)}" },
-        )
-        val where = pile.station?.let { " @ ${it.name ?: "Location ${it.id}"}" }.orEmpty()
-        return StockpileLine(pile.key, pile.name, "${pile.name}$where  on hand ${count(row.onHand)}  ${levels.joinToString("  ")}", row.status)
+        val station = pile.station?.let { it.name ?: "Location ${it.id}" }
+        return StockpileLine(pile.key, pile.name, station, row.onHand, pile.required, pile.preferred, pile.overflow, row.status)
     }
-
-    private fun count(value: Long) = "%,d".format(Locale.ROOT, value)
 }

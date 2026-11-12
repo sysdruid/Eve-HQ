@@ -30,16 +30,22 @@ class PrerequisitesTest {
         )
 
         assertThat(result.groups.map { it.name }).containsExactly("Frigate", "Mineral", "Moon Materials", "Other")
-        assertThat(result.groups.single { it.name == "Mineral" }.lines.map { it.text.substringBefore("  ") })
+        assertThat(result.groups.single { it.name == "Mineral" }.lines.map { it.name })
             .containsExactly("Pyerite", "Tritanium")
     }
 
     @Test
-    fun `a line says how much is needed, held and short, with its status`() {
+    fun `a line carries the item and what is held against what is needed, for the level bar`() {
         val line = groupPrerequisites(listOf(demand(1, required = 2_778_000, onHand = 1_000)), catalog).groups.single().lines.single()
 
-        assertThat(line.text).isEqualTo("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000")
-        assertThat(line.status).isEqualTo(StockpileStatus.BelowRequired)
+        assertThat(line).isEqualTo(PrerequisiteLine("Tritanium", item = 1, onHand = 1_000, required = 2_778_000, preferred = null))
+    }
+
+    @Test
+    fun `a preferred level is carried only when it asks for more than is required`() {
+        val lines = groupPrerequisites(listOf(demand(1, 100, preferred = 300), demand(2, 100)), catalog).groups.single { it.name == "Mineral" }.lines
+
+        assertThat(lines.associate { it.name to it.preferred }).containsExactlyInAnyOrderEntriesOf(mapOf("Tritanium" to 300L, "Pyerite" to null))
     }
 
     @Test
@@ -56,7 +62,6 @@ class PrerequisitesTest {
         val result = groupPrerequisites(listOf(demand(1, required = 100, onHand = 150, preferred = 300)), catalog)
 
         assertThat(result.groups.single().multibuy).isEqualTo("Tritanium 150") // 300 preferred less 150 held
-        assertThat(result.groups.single().lines.single().status).isEqualTo(StockpileStatus.BelowPreferred)
     }
 
     @Test

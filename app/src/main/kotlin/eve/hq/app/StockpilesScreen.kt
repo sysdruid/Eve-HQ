@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -26,12 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import eve.hq.app.stockpiles.StockpileForm
 import eve.hq.app.stockpiles.StockpilesViewModel
 import eve.hq.core.asset.AssetLocation
-import eve.hq.core.production.StockpileStatus
 
 @Composable
 fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> Unit) {
@@ -60,9 +59,9 @@ fun StockpilesScreen(viewModel: StockpilesViewModel, onShowAssets: (String) -> U
             items(state.lines) { line ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TypeIcon(line.key.item, size = 32.dp)
-                    Text(statusLabel(line.status), color = statusColor(line.status), modifier = Modifier.padding(end = 4.dp))
                     // Clicking the name jumps to the assets of this item, to see where it is scattered.
-                    Text(line.text, modifier = Modifier.weight(1f).clickable { onShowAssets(line.name) })
+                    Text(line.title, modifier = Modifier.weight(1f).clickable { onShowAssets(line.name) })
+                    LevelBar(line.onHand, line.required, line.preferred, line.overflow, modifier = Modifier.width(320.dp))
                     OutlinedButton(onClick = { viewModel.edit(line.key) }) { Text("Edit") }
                     OutlinedButton(onClick = { viewModel.remove(line.key) }) { Text("Remove") }
                 }
@@ -136,18 +135,4 @@ private fun placeName(location: AssetLocation) = location.name ?: "Location ${lo
 @Composable
 private fun LevelField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier) {
     OutlinedTextField(value = value, onValueChange = onChange, modifier = modifier, label = { Text(label) }, singleLine = true)
-}
-
-internal fun statusLabel(status: StockpileStatus) = when (status) {
-    StockpileStatus.BelowRequired -> "LOW"
-    StockpileStatus.BelowPreferred -> "LOWISH"
-    StockpileStatus.AboveOverflow -> "SURPLUS"
-    StockpileStatus.Ok -> "OK"
-}
-
-internal fun statusColor(status: StockpileStatus) = when (status) {
-    StockpileStatus.BelowRequired -> Color(0xFFC62828)
-    StockpileStatus.BelowPreferred -> Color(0xFFEF6C00)
-    StockpileStatus.AboveOverflow -> Color(0xFF1565C0)
-    StockpileStatus.Ok -> Color(0xFF2E7D32)
 }

@@ -3,9 +3,11 @@ package eve.hq.app
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -90,7 +92,7 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                     if (prerequisites.groups.isEmpty() && !state.loading && state.error == null) item { Text("No prerequisites missing.") }
                     if (prerequisites.allMultibuy.isNotEmpty()) {
                         item {
-                            OutlinedButton(onClick = { copyToClipboard(prerequisites.allMultibuy) }) { Text("Copy all as multibuy") }
+                            OutlinedButton(onClick = { copyToClipboard(prerequisites.allMultibuy) }) { Text("Copy all missing materials") }
                         }
                     }
                     prerequisites.groups.forEach { group ->
@@ -102,14 +104,14 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
                             ) {
                                 Text("${group.name} (${group.lines.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                                 if (group.multibuy.isNotEmpty()) {
-                                    OutlinedButton(onClick = { copyToClipboard(group.multibuy) }) { Text("Copy multibuy") }
+                                    OutlinedButton(onClick = { copyToClipboard(group.multibuy) }) { Text("Copy missing materials") }
                                 }
                             }
                         }
                         items(group.lines) { line ->
                             ItemRow(line.item) {
-                                Text(statusLabel(line.status), color = statusColor(line.status))
-                                Text(line.text)
+                                Text(line.name, Modifier.weight(1f))
+                                LevelBar(line.onHand, line.required, line.preferred, modifier = Modifier.width(320.dp))
                             }
                         }
                     }
@@ -144,8 +146,8 @@ fun ProjectsScreen(viewModel: ProjectsViewModel) {
 
 /** An item's icon beside what is said about it, the same way on every list. */
 @Composable
-private fun ItemRow(item: Long?, content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun ItemRow(item: Long?, content: @Composable RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         TypeIcon(item, size = 32.dp)
         content()
     }

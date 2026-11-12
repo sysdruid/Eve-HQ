@@ -79,7 +79,7 @@ class StockpilesViewModelTest {
         pending.complete(listOf(asset(1, 100, 1_210)))
         assertThat(viewModel.state.value.loading).isFalse()
         assertThat(viewModel.state.value.lines).containsExactly(
-            StockpileLine(StockpileKey(100), "Multifrequency L", "Multifrequency L  on hand 1,210  required 100  preferred 300", StockpileStatus.Ok),
+            StockpileLine(StockpileKey(100), "Multifrequency L", station = null, onHand = 1_210, required = 100, preferred = 300, overflow = null, status = StockpileStatus.Ok),
         )
     }
 
@@ -94,9 +94,9 @@ class StockpilesViewModelTest {
         val viewModel = viewModel()
 
         assertThat(viewModel.state.value.loading).isTrue()
-        assertThat(viewModel.state.value.lines.single().text).endsWith("on hand 40  required 100")
+        assertThat(viewModel.state.value.lines.single().onHand).isEqualTo(40)
         pending.complete(listOf(asset(1, 100, 90)))
-        assertThat(viewModel.state.value.lines.single().text).endsWith("on hand 90  required 100")
+        assertThat(viewModel.state.value.lines.single().onHand).isEqualTo(90)
     }
 
     @Test
@@ -232,7 +232,9 @@ class StockpilesViewModelTest {
         val line = viewModel().state.value.lines.single()
 
         assertThat(line.key).isEqualTo(StockpileKey(100, jita.id))
-        assertThat(line.text).isEqualTo("Multifrequency L @ Jita IV  on hand 40  required 100")
+        assertThat(line.title).isEqualTo("Multifrequency L @ Jita IV")
+        assertThat(line.onHand).isEqualTo(40)
+        assertThat(line.required).isEqualTo(100)
         assertThat(line.status).isEqualTo(StockpileStatus.BelowRequired)
     }
 

@@ -131,7 +131,7 @@ class ProjectsViewModelTest {
         val group = state.prerequisites.groups.single()
         assertThat(group.name).isEqualTo("Mineral")
         assertThat(group.lines).containsExactly(
-            PrerequisiteLine("Tritanium  need 2,778,000  on hand 1,000  short 2,777,000", StockpileStatus.BelowRequired, 34),
+            PrerequisiteLine("Tritanium", item = 34, onHand = 1_000, required = 2_778_000, preferred = null),
         )
         assertThat(group.multibuy).isEqualTo("Tritanium 2777000")
         assertThat(state.prerequisites.allMultibuy).isEqualTo("Tritanium 2777000")
@@ -145,7 +145,7 @@ class ProjectsViewModelTest {
         val state = viewModel().state.value
 
         assertThat(state.failures.single().message).isEqualTo("ESI is down")
-        assertThat(state.prerequisites.groups.single().lines.single().text).contains("on hand 0")
+        assertThat(state.prerequisites.groups.single().lines.single().onHand).isZero()
     }
 
     @Test

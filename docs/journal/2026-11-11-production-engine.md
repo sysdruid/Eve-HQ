@@ -70,6 +70,10 @@
   engine: one download for many rows, no repeat after a restart, missing icons remembered, failures retried), a decoder turns them
   into bitmaps with a small LRU, and two composables draw them with a quiet placeholder. Rendering a screen offscreen to a PNG
   made it possible to check the look without a display.
+- Stock against need became one reusable bar: `on hand / need` in compact numbers (2.78M, exact in the tooltip), four colour steps
+  (covered, 85%, 50%, below), a pale green between required and preferred, blue above overflow. A render of the first version showed
+  the most urgent rows looking grey: an almost empty red bar is invisible, so a short item's whole track is tinted instead. The
+  shortfall left the line; the multibuy copy ("Copy missing materials") carries the exact amounts, as in the game.
 
 ### Article Hook
 - **Publication Takeaway:** Hiding how requirements are produced behind one small interface let the engine be written
